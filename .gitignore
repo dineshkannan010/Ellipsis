@@ -1,0 +1,22 @@
+# Node.js (React)
+frontend/node_modules/
+frontend/build/
+frontend/.env
+
+# Python (Flask)
+backend/venv/
+backend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+backend/.env
+
+# System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# VS Code settings (optional, personal preference)
+.vscode/
