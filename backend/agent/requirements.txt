@@ -1,0 +1,5 @@
+langchain
+langchain-google-genai
+crawl4ai
+dotenv
+requests
