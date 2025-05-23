@@ -1,1 +1,0 @@
-export { MacbookAir } from "./MacbookAir";

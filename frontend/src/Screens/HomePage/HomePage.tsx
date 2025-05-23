@@ -16,7 +16,7 @@ interface TrendingTopic {
   category: string;
 }
 
-export const MacbookAir = (): JSX.Element => {
+export const HomePage = (): JSX.Element => {
   const [postContent, setPostContent] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);

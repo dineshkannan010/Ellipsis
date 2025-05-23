@@ -6,13 +6,17 @@ function App() {
 
   useEffect(() => {
     axios.get('/api/hello')
-      .then(res => setMsg(res.data.message))
-      .catch(err => console.error(err));
+      .then(response => {
+        setMessage(response.data.message);
+      })
+      .catch(error => {
+        console.error("Error fetching data: ", error);
+      });
   }, []);
 
   return (
     <div>
-      <h1>{msg}</h1>
+      <h1>{message || "Loading message..."}</h1>
     </div>
   );
 }

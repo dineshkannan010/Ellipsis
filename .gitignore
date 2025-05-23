@@ -6,6 +6,7 @@ frontend/.env
 # Python (Flask)
 backend/venv/
 backend/__pycache__/
+backend/flask_session/
 *.pyc
 *.pyo
 *.pyd
