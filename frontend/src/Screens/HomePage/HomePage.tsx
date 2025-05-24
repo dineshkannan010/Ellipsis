@@ -1,5 +1,5 @@
 import { ArrowRight  , X, Plus, Loader2, MicIcon, Menu } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Badge } from "@/Components/ui/badge";
 import { Button } from "@/Components/ui/button";
 import { Card, CardContent } from "@/Components/ui/card";
@@ -10,11 +10,38 @@ import {
 } from "@/Components/ui/dialog";
 import { fetchTrendingTopics } from "@/services/trendingService";
 
+import { connectPlatform, disconnectPlatform, getConnectedPlatforms, fetchOAuthUrl } from "@/services/socialService";
+
 interface TrendingTopic {
   title: string;
   description: string;
   category: string;
 }
+
+interface Platform {
+  name: string;
+  icon: string;
+  className: string;
+}
+
+// Social media platforms
+const socialPlatforms: Platform[] = [
+  {
+      name: "LinkedIn",
+      icon: "/linkedin.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+    {
+      name: "Reddit",
+      icon: "/reddit.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+    {
+      name: "Twitter",
+      icon: "/twitter.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+  ];
 
 export const HomePage = (): JSX.Element => {
   const [postContent, setPostContent] = useState("");
@@ -67,32 +94,41 @@ export const HomePage = (): JSX.Element => {
     },
   ];
 
-  // Social media platforms
-  const socialPlatforms = [
-    {
-      name: "LinkedIn",
-      icon: "/linkedin.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Reddit",
-      icon: "/reddit.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Twitter",
-      icon: "/twitter.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-  ];
+  useEffect(() => {
+    loadConnectedPlatforms();
+  }, []);
 
-  const handleConnect = (platformName: string) => {
-    setConnectedPlatforms((prev) => [...prev, platformName]);
+  const loadConnectedPlatforms = async () => {
+    const platforms = await getConnectedPlatforms();
+    setConnectedPlatforms(platforms);
   };
 
-  const handleDisconnect = (platformName: string) => {
-    setConnectedPlatforms((prev) => prev.filter((name) => name !== platformName));
+  const handleConnect = async (platformName: string) => {
+    try {
+      await connectPlatform(platformName);
+      setConnectedPlatforms((prev) => [...prev, platformName]);
+    } catch (err) {
+      console.error("Connection failed", err);
+    }
   };
+
+  const handleDisconnect = async (platformName: string) => {
+    try {
+      await disconnectPlatform(platformName);
+      setConnectedPlatforms((prev) => prev.filter((name) => name !== platformName));
+    } catch (err) {
+      console.error("Disconnection failed", err);
+    }
+  };
+
+  const handlePlatformOAuthRedirect = async (platformName: string) => {
+  try {
+    const oauthUrl = await fetchOAuthUrl(platformName);
+    window.location.href = oauthUrl;  // Redirect user to OAuth page
+  } catch (error) {
+    console.error("Error redirecting to OAuth:", error);
+  }
+};
 
   const unconnectedPlatforms = socialPlatforms.filter(
     (platform) => !connectedPlatforms.includes(platform.name)
@@ -111,21 +147,21 @@ export const HomePage = (): JSX.Element => {
 
         {/* Sidebar */}
         <div
-  className={`fixed left-0 top-0 h-screen bg-[#121212] transition-transform duration-300 ease-in-out z-20
-    ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} w-[153px]`}
->
-  <div className="flex flex-col gap-6 pt-10 px-4">
-    <div className="flex items-center justify-start gap-3 ">
-      <img src="/steppers.svg" alt="Steppers" className="w-[45px] h-[45px]" />
-      <span className="font-['Inter'] text-[14px] text-[#f8f8f8]">Ellipsis</span>
-    </div>
+          className={`fixed left-0 top-0 h-screen bg-[#121212] transition-transform duration-300 ease-in-out z-20
+          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} w-[153px]`}
+        >
+        <div className="flex flex-col gap-6 pt-10 px-4">
+          <div className="flex items-center justify-start gap-3 ">
+          <img src="/steppers.svg" alt="Steppers" className="w-[45px] h-[45px]" />
+          <span className="font-['Inter'] text-[14px] text-[#f8f8f8]">Ellipsis</span>
+        </div>
 
-    <div className="flex items-center justify-start gap-2 opacity-80">
-      <img className="w-[20px] h-[20px]" alt="Finance mode" src="/finance-mode.png" />
-      <span className="font-['Inter'] text-[12px] text-[#a0a0a0]">Performance</span>
+        <div className="flex items-center justify-start gap-2 opacity-80">
+          <img className="w-[20px] h-[20px]" alt="Finance mode" src="/finance-mode.png" />
+          <span className="font-['Inter'] text-[12px] text-[#a0a0a0]">Performance</span>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
         {/* Main Content Area */}
         <div
@@ -151,7 +187,11 @@ export const HomePage = (): JSX.Element => {
             {socialPlatforms
               .filter(platform => connectedPlatforms.includes(platform.name))
               .map(platform => (
-                <button key={platform.name} onClick={() => handleDisconnect(platform.name)} className="flex items-center gap-2 px-3 py-1.5 bg-[#313131]/80 rounded-lg hover:bg-[#313131] transition">
+                <button
+                  key={platform.name}
+                  onClick={() => handleDisconnect(platform.name)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[#313131]/80 rounded-lg hover:bg-[#313131] transition"
+                >
                   <img src={platform.icon} alt={platform.name} className="w-5 h-5" />
                   <span className="text-[#a1a1a1] text-sm">{platform.name}</span>
                 </button>
@@ -167,9 +207,10 @@ export const HomePage = (): JSX.Element => {
                 Connect Socials
               </Button>
             </DialogTrigger>
+
             <DialogContent className="bg-[#1F1F1F] border-[#313131] rounded-xl max-w-[400px]">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-white">Connect Your Socials</h2>
+                <h2 className="text-white font-semibold">Connect Your Socials</h2>
                 <button onClick={() => setIsDialogOpen(false)} className="text-[#a1a1a1] hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
@@ -177,11 +218,11 @@ export const HomePage = (): JSX.Element => {
               {unconnectedPlatforms.map(platform => (
                 <button
                   key={platform.name}
-                  onClick={() => handleConnect(platform.name)}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg text-[#a1a1a1] hover:bg-[#313131] transition ${platform.className}`}
+                  onClick={() => handlePlatformOAuthRedirect(platform.name)}
+                  className="flex items-center gap-3 px-4 py-2 bg-[#313131]/80 rounded-lg text-[#a1a1a1] hover:bg-[#313131] transition"
                 >
                   <img src={platform.icon} alt={platform.name} className="w-6 h-6" />
-                  {platform.name}
+                  <span>{platform.name}</span>
                 </button>
               ))}
             </DialogContent>
