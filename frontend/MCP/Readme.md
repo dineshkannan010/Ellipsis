@@ -1,306 +1,206 @@
-Anchor API MCP Server Setup Guide
-What This Actually Does
-This MCP server uses Anchor's real API to upload podcasts that automatically distribute to:
+# 🎙️ Podbean MCP Server 🎧
 
-✅ Spotify (owned by Spotify, auto-distributes)
-✅ Apple Podcasts
-✅ Google Podcasts
-✅ Other major platforms
-Prerequisites
-Anchor Account: Create a free account at anchor.fm
-Podcast Show: Create at least one podcast show on Anchor
-API Access: Get your authentication token (see below)
-Installation Steps
-1. Install Dependencies
-bash
-# Create project
-uv init anchor-mcp-server
-cd anchor-mcp-server
+An MCP server for managing your podcast through the Podbean API.
 
-# Add dependencies
-uv add "mcp[cli]" httpx python-multipart
+## 🎉 Overview
 
-# Or with pip
-pip install "mcp[cli]" httpx python-multipart
-2. Get Anchor API Credentials
-Method 1: Browser Developer Tools (Easiest)
-Go to anchor.fm and log in
-Open your podcast dashboard
-Open browser Developer Tools (F12)
-Go to Network tab
-Make any action (like viewing episodes)
-Look for requests to anchor.fm/api/
-Copy the Authorization: Bearer <token> header value
-Method 2: Inspect Anchor Web App
-bash
-# In browser console on anchor.fm:
-localStorage.getItem('anchor_token')
-# Or look for tokens in Application -> Local Storage
-Method 3: Manual Authentication (Advanced)
-python
-# auth_helper.py - Extract token from Anchor login
-import httpx
-import json
+This MCP server connects any MCP-compatible AI assistant to the Podbean API. Whether you're using Claude Desktop, or any other MCP client, you can now manage your podcasts, episodes, and analytics through natural conversation!
 
-async def get_anchor_token(email: str, password: str):
-    async with httpx.AsyncClient() as client:
-        # This might work but Anchor may have CSRF protection
-        response = await client.post("https://anchor.fm/api/auth/login", json={
-            "email": email,
-            "password": password
-        })
-        
-        if response.status_code == 200:
-            data = response.json()
-            return data.get("token")
-        return None
+## ✨ Features
 
-# Usage (be careful with credentials)
-token = await get_anchor_token("your-email", "your-password")
-3. Get Your Station ID
-After logging into Anchor, you can find your station ID by:
+### 🔐 Authentication
+- Client credentials authentication for managing your own podcasts
+- OAuth flow for third-party access (when needed)
+- Token management for multiple podcasts - juggle them all!
 
-Go to your podcast dashboard
-Look at URL: anchor.fm/dashboard/podcast/{STATION_ID}
-Or use the MCP server to list stations: anchor://stations
-4. Environment Setup
-Create .env file:
+### 🎙️ Podcast Management
+- List all your awesome podcasts in one place
+- Get the nitty-gritty details about your shows
+- Peek at your stats and analytics (who's listening?)
+- Browse podcast categories to find your niche
 
-bash
-# Anchor API Authentication
-ANCHOR_AUTH_TOKEN=your_bearer_token_here
+### 📝 Episode Management
+- See all episodes for your podcast at a glance
+- Dig into the details of any episode
+- Publish new episodes with ease (no more complex forms!)
+- Update existing episodes when you need a tweak
+- Delete episodes that didn't quite hit the mark
 
-# Your podcast station ID (optional, can be passed to tools)
-ANCHOR_STATION_ID=your_station_id_here
+### 📁 File Management
+- Get green lights for file uploads to Podbean
+- Upload your audio masterpieces and eye-catching images
+- Use those uploaded files when creating episodes
 
-# Optional: Your user ID (usually auto-detected)
-ANCHOR_USER_ID=your_user_id_here
-5. Running the Server
-Development & Testing
-bash
-# Test with MCP Inspector
-mcp dev anchor_mcp_server.py
+### 📊 Analytics
+- Check out how many downloads your podcast is getting
+- Track your daily listener counts (watching them grow!)
+- See how users are interacting with your content
 
-# With environment file
-mcp dev anchor_mcp_server.py -f .env
+### 🌐 Public Podcast Access
+- Access public podcast data through oEmbed
+- Get the scoop on any public episode out there
 
-# With individual env vars
-mcp dev anchor_mcp_server.py -v ANCHOR_AUTH_TOKEN=your_token
-Claude Desktop Integration
-bash
-# Install in Claude Desktop
-mcp install anchor_mcp_server.py --name "Anchor Podcast Uploader" -f .env
+## 🧰 Prerequisites
 
-# Or with variables
-mcp install anchor_mcp_server.py -v ANCHOR_AUTH_TOKEN=token -v ANCHOR_STATION_ID=station
-Direct Execution
-bash
-python anchor_mcp_server.py
-Real Usage Examples
-1. List Your Podcast Shows
-python
-# Use resource: anchor://stations
-stations = await session.read_resource("anchor://stations")
-print(stations)  # Shows all your podcast shows
-2. Upload Complete Episode (One Step)
-python
-result = await session.call_tool("upload_podcast_episode", {
-    "title": "My AI-Generated Episode",
-    "description": "This episode was created by my AI agent and uploaded automatically!",
-    "audio_file_path": "/path/to/episode.mp3",
-    "publish_immediately": True,  # or False for draft
-    "is_explicit": False,
-    "episode_type": "full"
-})
-print(result)
-# Output: "Complete upload successful! Audio ID: xyz, Episode ID: abc"
-3. Two-Step Process (More Control)
-python
-# Step 1: Upload audio
-upload_result = await session.call_tool("upload_audio_file", {
-    "audio_file_path": "/path/to/episode.mp3"
-})
-# Extract audio ID from result
+- Python 3.10 or higher (time to upgrade if you haven't already!)
+- A Podbean account with API access (free or paid - they're all welcome)
+- Podbean API credentials (Client ID and Secret - your magical keys to the kingdom)
 
-# Step 2: Create episode
-episode_result = await session.call_tool("create_episode", {
-    "title": "My Episode",
-    "description": "Episode description",
-    "audio_id": "the_audio_id_from_step1",
-    "publish_immediately": False  # Save as draft
-})
+## 🚀 Installation
 
-# Step 3: Publish later if needed
-publish_result = await session.call_tool("publish_episode", {
-    "episode_id": "episode_id_from_step2"
-})
-4. List Episodes for Your Show
-python
-episodes = await session.read_resource("anchor://station/YOUR_STATION_ID/episodes")
-print(episodes)  # All episodes for that show
-Real Integration Example
-Here's how to integrate with your agent application:
+1. Grab the code:
+   ```bash
+   git clone <repository-url>
+   cd PodbeanMCP
+   ```
 
-python
-# agent_podcast_uploader.py
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+2. Set up a virtual environment using the super-speedy `uv` tool:
+   ```bash
+   uv venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
 
-class PodcastUploader:
-    def __init__(self, anchor_token: str, station_id: str):
-        self.server_params = StdioServerParameters(
-            command="python",
-            args=["anchor_mcp_server.py"],
-            env={
-                "ANCHOR_AUTH_TOKEN": anchor_token,
-                "ANCHOR_STATION_ID": station_id
-            }
-        )
-    
-    async def upload_episode(self, title: str, description: str, audio_path: str):
-        async with stdio_client(self.server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                
-                # Upload in one step
-                result = await session.call_tool("upload_podcast_episode", {
-                    "title": title,
-                    "description": description,
-                    "audio_file_path": audio_path,
-                    "publish_immediately": True
-                })
-                
-                return result
-    
-    async def list_my_shows(self):
-        async with stdio_client(self.server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                
-                stations_data = await session.read_resource("anchor://stations")
-                return stations_data
+3. Install the package and its dependencies:
+   ```bash
+   # Using uv (faster)
+   uv pip install -e .
+   ```
 
-# Usage in your agent
-uploader = PodcastUploader(
-    anchor_token="your_token_here",
-    station_id="your_station_id"
-)
+   Or if you prefer traditional pip:
+   ```bash
+   pip install -e .
+   ```
+   
+   This will install all dependencies from the pyproject.toml file, including:
+   - mcp[cli] (MCP SDK)
+   - httpx (for API requests)
+   - python-dotenv (for environment variables)
+   - pydantic (for data validation)
 
-# Upload a podcast your agent created
-result = await uploader.upload_episode(
-    title="AI Daily Briefing - March 15",
-    description="Today's AI news summarized by our AI agent",
-    audio_path="/tmp/ai_briefing_20240315.mp3"
-)
-print(result)
-Audio File Requirements
-Supported Formats
-✅ MP3 (recommended)
-✅ WAV
-✅ M4A/AAC
-✅ FLAC
-Specifications
-Max file size: 500MB
-Recommended bitrate: 128kbps or higher for MP3
-Sample rate: 44.1kHz recommended
-Channels: Mono or Stereo
-Quality Tips
-python
-# For AI-generated audio, ensure:
-- Clear audio without clipping
-- Consistent volume levels
-- Remove long silences at start/end
-- Add intro/outro music if desired
-Troubleshooting
-Common Issues
-1. Authentication Errors
-bash
-Error: 401 Unauthorized
-Solution: Your ANCHOR_AUTH_TOKEN is invalid or expired
+4. Create a `.env` file with your secret Podbean powers:
+   ```
+   PODBEAN_CLIENT_ID=your_client_id
+   PODBEAN_CLIENT_SECRET=your_client_secret
+   ```
 
-Re-extract token from browser
-Check token format (should start with Bearer)
-2. Station ID Issues
-bash
-Error: No station ID provided
-Solution:
+## 🏃‍♂️ Running the Server
 
-Set ANCHOR_STATION_ID in environment
-Or pass station_id parameter to tools
-List stations first: anchor://stations
-3. File Upload Failures
-bash
-Error: Audio file not found
-Solution:
+Fire it up! It's as easy as:
+```bash
+python server.py
+```
 
-Check file path is absolute
-Verify file exists and is readable
-Check file format is supported
-4. Large File Issues
-bash
-Error: File too large (600MB). Maximum is 500MB
-Solution:
+The server will spring to life on the default port. Magic! ✨
 
-Compress audio file
-Use lower bitrate (96-128kbps is fine for speech)
-Split into multiple episodes if needed
-Debug Mode
-bash
-# Run with debug logging
-mcp dev anchor_mcp_server.py --log-level debug
+## 🔌 Connecting to Any MCP Client
 
-# Check what's happening
-tail -f ~/.mcp/logs/anchor_mcp_server.log
-Distribution Timeline
-After successful upload:
+1. Open your favorite MCP-compatible AI assistant (Claude, GPT, or any other)
+2. Find the MCP server connection settings in your client
+3. Add a new MCP server with the URL where your server is running (e.g., `http://localhost:8000`)
+4. Boom! Your AI assistant now has podcast superpowers! 🦸‍♀️
 
-Anchor: Immediately available
-Spotify: 1-4 hours typically
-Apple Podcasts: 1-24 hours
-Google Podcasts: 1-24 hours
-Other platforms: Varies
-API Rate Limits
-Anchor typically allows:
+## 🔧 Available Tools
 
-File uploads: 10-20 per hour
-API calls: 100-500 per hour
-Large uploads: May have daily limits
-Security Notes
-Protecting Your Token
-bash
-# Use environment files (don't commit to git)
-echo ".env" >> .gitignore
+### 🔑 Authentication Tools
+- `authenticate_with_podbean()`: Get your VIP backstage pass to Podbean
+- `get_podcast_tokens()`: Collect tokens for all your podcasts like Pokémon
+- `get_podcast_token(podcast_id)`: Grab a token for just that special podcast
 
-# Or use system environment variables
-export ANCHOR_AUTH_TOKEN="your_token"
+### 🎙️ Podcast Tools
+- `list_podcasts_tool()`: See your podcast empire at a glance
+- `get_podcast_info()`: Get the 411 on your podcast
+- `get_podcast_stats(podcast_id, start_date, end_date, period, episode_id)`: Numbers, charts, and bragging rights!
+- `get_daily_listeners(podcast_id, month)`: Track your growing audience day by day
+- `browse_podcast_categories()`: Explore the podcast universe by category
 
-# For production, use secret management
-Token Rotation
-Anchor tokens may expire periodically
-Monitor for 401 errors and refresh as needed
-Consider automated token refresh if possible
-Production Deployment
-For production agent applications:
+### 🎧 Episode Tools
+- `get_podcast_episodes_tool(podcast_id)`: Round up all episodes from your show
+- `get_episode_details_tool(episode_id)`: Zoom in on a specific episode
+- `publish_episode(podcast_id, title, content, ...)`: Release your voice to the world!
+- `update_episode(episode_id, podcast_id, ...)`: Tweak that episode to perfection
+- `delete_episode(episode_id, podcast_id, delete_media)`: Oops! That one needs to go...
 
-python
-# production_config.py
-import os
-from typing import Optional
+### 💾 File Upload Tools
+- `authorize_file_upload(podcast_id, filename, filesize, content_type)`: Get permission to beam files up
+- `upload_file_to_podbean(presigned_url, file_path, content_type, file_key)`: Send your audio masterpieces to the cloud
 
-class AnchorConfig:
-    def __init__(self):
-        self.auth_token = os.getenv("ANCHOR_AUTH_TOKEN")
-        self.station_id = os.getenv("ANCHOR_STATION_ID")
-        self.max_retries = 3
-        self.timeout = 60
-        
-    def validate(self) -> bool:
-        return bool(self.auth_token and self.station_id)
+### 🌐 Public Access Tools
+- `get_oembed_data(url)`: Get embeddable goodies for any Podbean URL
+- `get_public_episode_info(episode_url)`: Snoop on any public episode (legally, of course!)
 
-# Use with error handling and retries
-config = AnchorConfig()
-if not config.validate():
-    raise ValueError("Missing Anchor configuration")
-This is a real, working implementation that uses Anchor's actual API endpoints. Your podcasts uploaded through this MCP server will automatically appear on Spotify and other major platforms!
+### 🔗 OAuth Tools (for Third-Party Access)
+- `generate_oauth_url(redirect_uri, scope, state)`: Create a magic login link
+- `exchange_oauth_code(code, redirect_uri)`: Trade your code for a shiny token
+- `refresh_oauth_token(refresh_token)`: Renew your expired token - no waiting in line!
 
+## 📚 Available Resources
+
+- `podbean://auth`: Your authentication treasure chest
+- `podbean://podcast/{podcast_id}`: Episode collection for your podcast
+- `podbean://episode/{episode_id}`: All the juicy details about an episode
+- `podbean://upload/authorize`: Your upload permission slip
+- `podbean://categories`: The podcast category encyclopedia
+- `podbean://public/oembed`: Embed-friendly data for any Podbean URL
+- `podbean://oauth/authorize`: Your OAuth permission gateway
+
+## 💬 Available Prompts
+
+- `podcast_summary(podcast_id)`: "Hey AI, can you summarize my podcast?"
+- `episode_transcript(episode_id)`: "Turn my ramblings into readable text, please!"
+
+## 💬 Example Usage with Any MCP Client
+
+Here are some fun ways to chat with your AI assistant using this MCP server:
+
+1. **Get the VIP pass**:
+   ```
+   Hey, can you authenticate with my Podbean account and show me my podcast collection?
+   ```
+
+2. **Round up the episodes**:
+   ```
+   I'm feeling nostalgic! Show me all the episodes from my "Cooking with Code" podcast.
+   ```
+
+3. **Share your brilliance with the world**:
+   ```
+   I'm ready to drop a new episode! It's called "AI in Podcasting" and it's all about how AI is making podcasting easier and more fun. Can you help me publish it?
+   ```
+
+4. **Check if anyone's listening** 👂:
+   ```
+   How's my podcast doing? Can you show me the download stats from last week?
+   ```
+
+## 🛠️ Error Handling
+
+We've got your back when things go sideways! This server comes with super-friendly error handling:
+
+- Authentication hiccups? We'll guide you through fixing them 🔧
+- API giving you trouble? We'll tell you exactly what went wrong 🚨
+- Tried something that doesn't compute? We'll let you know before it breaks 🤓
+- Detailed error messages that actually make sense to humans! 😮‍💨
+
+## 🚧 Limitations (Nobody's Perfect!)
+
+- Want to upload files? You'll need a bit of extra setup for that 📁
+- Some fancy features might need a paid Podbean subscription 💳
+- Podbean has rate limits, so don't go too wild with the requests 🚀
+- We can't make your podcast content go viral (that's still on you!) 🌟
+
+## 👩‍💻 Contributing
+
+Got ideas to make this even better? We'd love your help! Fork, code, and send us a Pull Request. Let's make podcast management even more awesome together! 🤝
+
+## 📃 License
+
+This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).
+
+You are free to share and adapt this code for non-commercial purposes, as long as you provide attribution and indicate any changes. For commercial use, please contact amurshak@gmail.com.
+
+
+## 👏 Acknowledgments
+
+- The amazing folks behind the Podbean API docs 📖
+- The wizards who created the MCP SDK 🧙‍♂️
+- You, for using this tool to make awesome podcasts! 🎉
