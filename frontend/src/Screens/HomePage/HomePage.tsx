@@ -92,8 +92,8 @@ export const HomePage = (): JSX.Element => {
       className: "bg-[#313131] hover:bg-[#313131]/80",
       showInWelcome: false,
       url: "https://www.podbean.com/login",
-      dashboardUrl: "https://www.podbean.com/user-pPmjWYuEqubX",
-      checkLoginUrl: "https://www.podbean.com/user-pPmjWYuEqubX"
+      dashboardUrl: "https://www.podbean.com",
+      checkLoginUrl: "https://www.podbean.com"
     },
     {
       name: "Spotify",
