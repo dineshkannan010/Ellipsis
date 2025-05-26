@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Download, Share2, ArrowRight, MicIcon } from 'lucide-react';
-import { Badge } from "@/Components/ui/badge";
-import { Button } from "@/Components/ui/button";
+import useEventSource from 'use-event-source';
+import Markdown from 'react-markdown';
 
 const CritiqueIcon = () => (
   <img src="/public/edit.svg" alt="edit" className="w-5 h-5" />
@@ -56,6 +56,28 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     growth: false,
   });
 
+  const [responses, setResponses] = useState<{ general_public?: string; critic?: string }>({});
+  const [madAgent, setMadAgent] = useState('');
+  const [script, setScript] = useState('');
+  const [audioSrc, setAudioSrc] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+
+  useEventSource('http://localhost:5000/stream', {
+    status: ({ status }) => setStatus(status),
+    persona: ({ persona, response }) => {
+      if (persona === 'general_public' || persona === 'critic') {
+        setResponses(prev => ({ ...prev, [persona]: response }));
+      }
+    },
+    mad: ({ mad_agent }) => setMadAgent(mad_agent),
+    script: ({ script }) => setScript(script),
+    audio: ({ audio }) => {
+      console.log('Audio received from SSE:', audio);
+      setAudioSrc(`http://localhost:5000${audio}`);
+    },
+  });
+
   const handleButtonClick = (buttonName: string) => {
     setActiveButtons(prev => ({
       ...prev,
@@ -89,23 +111,40 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     };
   }, [currentStep]);
 
+  useEffect(() => {
+  fetch('http://localhost:5000/api/generate', { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: title })
+  })
+  .then(res => res.json())
+  .then(data => {
+    console.log('API audio URL:', data.audio_url);
+    setScript(data.final_script.map((s: [string, string]) => `**${s[0]}:** ${s[1]}`).join('\n\n'));
+    setResponses({ general_public: data.responses[0], critic: data.responses[1] });
+    setAudioSrc(`http://localhost:5000${data.audio_url}`);
+    setLoading(false);
+  })
+  .catch(console.error);
+}, [title]);
+
   const CurrentIcon = agentSteps[currentStep].icon;
 
   const LoadingDots = () => (
-    <div className="flex items-center gap-1 ml-3 relative top-[1px]">
-      {[0, 1, 2].map((index) => (
+    <div className="flex items-center gap-1 ml-3">
+      {[0, 1, 2].map((idx) => (
         <div
-          key={index}
-          className={`w-2.5 h-2.5 rounded-full border-2 border-[#9392E6] ${
-            activeDot === index ? 'bg-[#9392E6]' : ''
-          } transition-colors duration-200`}
+          key={idx}
+          className={`w-2 h-2 rounded-full border-2 border-[#9392E6] ${activeDot === idx ? 'bg-[#9392E6]' : ''}`}
         />
       ))}
     </div>
   );
+  
 
   return (
     <div className="w-full max-w-[900px] mx-auto p-8">
+      <div className="pb-[150px] md:pb-[180px]"> 
       {/* Title */}
       <h1 className="text-white text-2xl mb-6">{title}</h1>
 
@@ -119,90 +158,56 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
         </div>
       </div>
 
-      {/* Response Grid Container - Modified to remove outer container */}
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[#A1A1A1] text-sm">Response 1</span>
-            <span className="text-[#A1A1A1] text-xs opacity-60">Artificial</span>
-          </div>
-          <div className="h-[200px]"></div>
-        </div>
-        <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[#A1A1A1] text-sm">Response 2</span>
-            <span className="text-[#A1A1A1] text-xs opacity-60">Artificial</span>
-          </div>
-          <div className="h-[200px]"></div>
-        </div>
-      </div>
-
-      {/* Agent Status Box */}
-      <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
-        <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
-          <div className="flex items-center">
-            <div className="text-[#9392E6] mr-2">
-              <CurrentIcon />
+      {!loading && responses.general_public && responses.critic && (
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+            <span className="text-[#A1A1A1] text-sm"> Response1</span>
+            <div className="text-gray-300 mt-2">
+              <Markdown>{responses.general_public}</Markdown>
             </div>
-            {agentSteps[currentStep].name}
-            <span className="ml-2">working on the content</span>
-            {!responseGenerated && <LoadingDots />}
+          </div>
+          <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+            <span className="text-[#A1A1A1] text-sm"> Response2</span>
+            <div className="text-gray-300 mt-2">
+              <Markdown>{responses.critic}</Markdown>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Script Ready Text */}
-      <div className="text-[#A1A1A1] text-sm mb-4">Your script is ready!</div>
+      {!script && madAgent && (
+        <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6 text-[#A1A1A1] text-center">
+          MAD debate ongoing... Evaluating: <strong>{madAgent}</strong>
+        </div>
+      )}
+
+      {script ? (
+        <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
+          <span className="text-[#A1A1A1] text-sm">Generated Script</span>
+          <div className="text-gray-300 mt-2">
+            <Markdown>{script}</Markdown>
+          </div>
+        </div>
+      ) : (
+        !loading && <div className="text-[#A1A1A1] text-center py-4">Generating your script...</div>
+      )}
+
 
       {/* Audio Player */}
-      <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
-        <div className="flex items-center gap-4">
-          <button 
-            className={`p-1.5 bg-transparent border-2 border-[#9493E7] rounded-full transition-colors ${
-              activeButtons.play ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
-            }`}
-            onClick={() => {
-              setActiveButtons(prev => ({ ...prev, play: !prev.play }));
-              setIsPlaying(!isPlaying);
-            }}
-          >
-            <Play className="w-3.5 h-3.5 text-[#9493E7]" fill="currentColor" />
-          </button>
-          <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
-            <div 
-              className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-200"
-              style={{ width: '30%' }}
-            >
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#9493E7]"></div>
-            </div>
-          </div>
-          <span className="text-[#A1A1A1] text-xs">00:00/3:00</span>
-          <div className="flex items-center gap-2">
-            <button 
-              className="p-2 rounded-full transition-all duration-200 border border-transparent bg-[#313131]/80 hover:bg-[#9388B3] group"
-            >
-              <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
-            </button>
-            <button 
-              className="px-4 py-1.5 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] transition-all duration-200 group"
-            >
-              <span className="text-[#A1A1A1] text-xs group-hover:text-[#313131]">Share</span>
-            </button>
-          </div>
+      {audioSrc ? (
+        <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
+          <audio controls className="w-full">
+            <source src={audioSrc} type="audio/wav" />
+            Your browser does not support the audio element.
+          </audio>
         </div>
+      ) : (
+        <div className="text-white">Audio is not loaded yet...</div>
+      )}
       </div>
 
-      {/* Script Box */}
-      <div className="bg-[#1F1F1F] rounded-xl p-4 mb-36">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[#A1A1A1] text-sm">Generated Script</span>
-          <button className="px-3 py-1 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] hover:text-[#313131] transition-all duration-200">
-            <span className="text-[#A1A1A1] text-xs hover:text-[#313131]">Edit</span>
-          </button>
-        </div>
-        <div className="text-[#A1A1A1] text-sm min-h-[200px] whitespace-pre-wrap"></div>
-      </div>
-
+      {/* Agent Steps */}
+      
       {/* Post About Box - Sticky */}
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#121212] via-[#121212]/90 to-transparent pt-32">
         <div className="w-full max-w-[900px] mx-auto px-8">

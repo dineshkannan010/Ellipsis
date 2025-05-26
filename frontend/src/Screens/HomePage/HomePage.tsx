@@ -1,17 +1,19 @@
 import { ArrowRight, X, Plus, Loader2, MicIcon, Menu } from "lucide-react";
 import React, { useState, KeyboardEvent, useEffect } from "react";
-import { Badge } from "@/Components/ui/badge";
 import { Button } from "@/Components/ui/button";
-import { Card, CardContent } from "@/Components/ui/card";
+import { Card } from "@/Components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
 } from "@/Components/ui/dialog";
 import { fetchTrendingTopics } from "@/services/trendingService";
-import { ContentGenerationView } from "@/Components/ContentGenerationView";
 
 import { connectPlatform, disconnectPlatform, getConnectedPlatforms, fetchOAuthUrl } from "@/services/socialService";
+
+interface HomePageProps {
+  onNavigate: (title: string) => void;
+}
 
 interface TrendingTopic {
   title: string;
@@ -44,7 +46,7 @@ const socialPlatforms: Platform[] = [
     },
   ];
 
-export const HomePage = (): JSX.Element => {
+export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   const [postContent, setPostContent] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
@@ -54,8 +56,6 @@ export const HomePage = (): JSX.Element => {
   const [expandedTopicIndex, setExpandedTopicIndex] = useState<number | null>(null);
   const [showTrendingTopics, setShowTrendingTopics] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [showContentGeneration, setShowContentGeneration] = useState(false);
-  const [contentGenerationTitle, setContentGenerationTitle] = useState("");
   const [activeButtons, setActiveButtons] = useState({
     trending: false,
     opinion: false,
@@ -123,10 +123,12 @@ export const HomePage = (): JSX.Element => {
 
   const handleConnect = async (platformName: string) => {
     try {
+      const oauthUrl = await fetchOAuthUrl(platformName);
+      window.location.href = oauthUrl; // OAuth redirect
       await connectPlatform(platformName);
       setConnectedPlatforms((prev) => [...prev, platformName]);
     } catch (err) {
-      console.error("Connection failed", err);
+      console.error("Connection error:", err);
     }
   };
 
@@ -135,47 +137,26 @@ export const HomePage = (): JSX.Element => {
       await disconnectPlatform(platformName);
       setConnectedPlatforms((prev) => prev.filter((name) => name !== platformName));
     } catch (err) {
-      console.error("Disconnection failed", err);
+      console.error("Disconnection error:", err);
     }
   };
-
-  const handlePlatformOAuthRedirect = async (platformName: string) => {
-  try {
-    const oauthUrl = await fetchOAuthUrl(platformName);
-    window.location.href = oauthUrl;  // Redirect user to OAuth page
-  } catch (error) {
-    console.error("Error redirecting to OAuth:", error);
-  }
-};
 
   const unconnectedPlatforms = socialPlatforms.filter(
     (platform) => !connectedPlatforms.includes(platform.name)
   );
 
-  const handlePostContentKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+  const handlePostContentKeyPress = async (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && postContent.trim()) {
       e.preventDefault();
-      setContentGenerationTitle(postContent);
-      setShowContentGeneration(true);
+      console.log('Navigating to ContentGenerationView:', postContent);
+      onNavigate(postContent);
     }
   };
 
   const handleTrendingTopicClick = (topic: TrendingTopic) => {
-    setContentGenerationTitle(topic.title);
-    setShowContentGeneration(true);
-    setShowTrendingTopics(false);
+    onNavigate(topic.title);
   };
 
-  if (showContentGeneration) {
-    return (
-      <div className="bg-gradient-to-b from-[#1f1f1f] to-[#121212] min-h-screen">
-        <ContentGenerationView 
-          title={contentGenerationTitle}
-          onBack={() => setShowContentGeneration(false)}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="bg-gradient-to-b from-[#1f1f1f] to-[#121212] flex justify-center items-center w-full min-h-screen">
@@ -286,7 +267,7 @@ export const HomePage = (): JSX.Element => {
           <textarea
             value={postContent}
             onChange={e => setPostContent(e.target.value)}
-            onKeyPress={handlePostContentKeyPress}
+            onKeyDown={handlePostContentKeyPress}
             placeholder="Post About..."
             className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none"
           />
@@ -339,8 +320,7 @@ export const HomePage = (): JSX.Element => {
                 onClick={() => {
                   handleButtonClick('arrow');
                   if (postContent.trim()) {
-                    setContentGenerationTitle(postContent);
-                    setShowContentGeneration(true);
+                    onNavigate(postContent);
                   }
                 }}
                 className={`p-2 rounded-full transition-all duration-200 border border-transparent ${

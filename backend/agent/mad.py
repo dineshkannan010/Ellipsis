@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 import time
+from flask_sse import sse
+load_dotenv()
 
 general_public_prompt = """
 You are now General Public, one of the referees in this task. You are interested in the story and looking for updates on the investigation. Please think critically by yourself and note that it’s your responsibility to choose one of which is the better first.
@@ -88,16 +90,20 @@ class MAD:
         for rounds in range(self.rounds):
             for name, agent_text in self.agents.items():
                 prompt = self.template.format(
-                source_text= self.source_text,
-                compared_text_one= self.agent1_text,
-                compared_text_two = self.agent2_text,
-                chat_history = self.history,
-                role_description = agent_text,
-                agent_name = name)  # Trim long input
+                    source_text= self.source_text,
+                    compared_text_one= self.agent1_text,
+                    compared_text_two = self.agent2_text,
+                    chat_history = self.history,
+                    role_description = agent_text,
+                    agent_name = name)  # Trim long input
+                if sse:
+                    sse.publish({"mad_agent": name, "round": rounds+1}, type='mad')
                 time.sleep(10)
-                response = llm.invoke(prompt)
                 
+                response = llm.invoke(prompt)
+                print(f"Round {rounds+1} - {name}: {response}")
                 self.history.append(response)
+                
         return self._get_final_response(llm)
 
     def _get_final_response(self,llm)->str:
@@ -147,7 +153,7 @@ class MAD:
             all_reviews_summary = self.history,
             )  # Trim long input
         response = llm.invoke(prompt)
-
+        print(f"Final Synthesis: {response}")
         return response
 
 

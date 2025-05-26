@@ -3,8 +3,9 @@ from typing import Dict
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-from mad import MAD
+from .mad import MAD
 import re
+from flask_sse import sse
 
 sarah = """
 You are Sarah, an experienced and thoughtful individual. You focus on the quality of the content and prefer concise, well-structured information. You have a strong appreciation for traditional topics such as sports, history, and established cultural themes.
@@ -49,7 +50,7 @@ def load_prompt_template() -> PromptTemplate:
 
     return news_recitation_prompt
 
-def summarize_contents(content: Dict[str, str]) -> Dict[str, str]:
+def summarize_contents(content: Dict[str, str], sse=None) -> Dict[str, str]:
     prompt_template = load_prompt_template()
 
     llm = ChatGoogleGenerativeAI(
@@ -62,9 +63,23 @@ def summarize_contents(content: Dict[str, str]) -> Dict[str, str]:
         prompt = prompt_template.format(persona=i_name,news_content=content[:10000],duration= 5, n_speakers=2)  # Trim long input
         response = llm.invoke(prompt)
         initial_respones.append(response.content)
+    # print(f"Total initial response: {initial_respones}")
+    # print(f"initial response 0: {initial_respones[0]}")
+    
+    # print(f"\n initial response 1: {initial_respones[1]}")
+
+    if sse:
+        sse.publish({"persona": "Sarah", "response": initial_respones[0]}, type='persona')
+        sse.publish({"persona": "John", "response": initial_respones[1]}, type='persona')
+
+    # Create a debate between the two personas
     mad_agents = MAD(initial_respones[0], initial_respones[1])
+    
+    if sse:
+        sse.publish({"status": "mad_started"}, type='status')
+
     conversation= mad_agents.debate(llm).content
-    return parse_transcript(conversation)
+    return initial_respones, parse_transcript(conversation)
 
 def parse_transcript(transcript: str):
         # Regex pattern to match [S1], [S2], etc., followed by their text

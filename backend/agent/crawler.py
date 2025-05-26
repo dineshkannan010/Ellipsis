@@ -325,27 +325,27 @@ def crawler(args):
     print(f"Collected {len(collected_chunks)} chunks from '{args.url}'")
 
     # Optional: return or print chunks (adapt as needed)
-    for i, chunk in enumerate(collected_chunks):
-        print(f"\n--- Chunk {i} ---\n{chunk}\n")
+    # for i, chunk in enumerate(collected_chunks):
+    #     print(f"\n--- Chunk {i} ---\n{chunk}\n")
 
     # You can now return or use `collected_chunks` and `collected_metadata` as needed
     return ','.join(collected_chunks)#, collected_metadata
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crawl and chunk documents without saving to database")
-    parser.add_argument("--url", help="URL to crawl (regular, .txt, or sitemap)")
-    parser.add_argument("--chunk-size", type=int, default=1000, help="Max chunk size (chars)")
-    parser.add_argument("--max-depth", type=int, default=3, help="Recursion depth for regular URLs")
-    parser.add_argument("--max-concurrent", type=int, default=10, help="Max parallel browser sessions")
-    args = parser.parse_args()
-    args.url = "https://www.cnn.com/sitemap/news.xml"
-    chunks, metadata = crawler(args)
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser(description="Crawl and chunk documents without saving to database")
+#     parser.add_argument("--url", help="URL to crawl (regular, .txt, or sitemap)")
+#     parser.add_argument("--chunk-size", type=int, default=1000, help="Max chunk size (chars)")
+#     parser.add_argument("--max-depth", type=int, default=3, help="Recursion depth for regular URLs")
+#     parser.add_argument("--max-concurrent", type=int, default=10, help="Max parallel browser sessions")
+#     args = parser.parse_args()
+#     args.url = "https://www.cnn.com/sitemap/news.xml"
+#     chunks, metadata = crawler(args)
     
-    # Print to console
-    print(chunks)
+#     # Print to console
+#     print(chunks)
     
-    # Save to a text file
-    with open("chunks_output.txt", "w", encoding="utf-8") as f:
-        for chunk in chunks:
-            f.write(f"{chunk}\n")
+#     # Save to a text file
+#     with open("chunks_output.txt", "w", encoding="utf-8") as f:
+#         for chunk in chunks:
+#             f.write(f"{chunk}\n")
 

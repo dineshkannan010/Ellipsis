@@ -24,7 +24,7 @@ def main():
 
     # for url, summary in summaries.items():
     print(f"\n--- Summary for  ---\n{summaries}\n")
-    #text_2_audio(summaries)
+    text_2_audio(summaries)
 
 
 
