@@ -1,5 +1,7 @@
 langchain
-langchain-google-genai
-crawl4ai
 dotenv
 requests
+orpheus-cpp
+llama-cpp-python
+pydub
+scipy
