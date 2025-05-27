@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Play, Download, Share2, ArrowRight, MicIcon } from 'lucide-react';
-import useEventSource from 'use-event-source';
 import Markdown from 'react-markdown';
+import { usePodcastSSE } from '../hooks/usePodcastSSE'
 
 const CritiqueIcon = () => (
   <img src="/public/edit.svg" alt="edit" className="w-5 h-5" />
@@ -37,6 +37,15 @@ interface ContentGenerationViewProps {
   onBack?: () => void;
 }
 
+type Stage =
+  | 'crawling'
+  | 'initialResponses'
+  | 'debate'
+  | 'scriptReady'
+  | 'audioGenerating'
+  | 'audioError'
+  | 'audioReady';
+
 export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ title, onBack }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isContentVisible, setIsContentVisible] = useState(true);
@@ -56,27 +65,15 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     growth: false,
   });
 
+  const [stage, setStage] = useState<Stage>('crawling');
   const [responses, setResponses] = useState<{ general_public?: string; critic?: string }>({});
-  const [madAgent, setMadAgent] = useState('');
-  const [script, setScript] = useState('');
-  const [audioSrc, setAudioSrc] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('');
+  const [script, setScript] = useState<string>('');
+  const [audioSrc, setAudioSrc] = useState<string>('');
 
-  useEventSource('http://localhost:5000/stream', {
-    status: ({ status }) => setStatus(status),
-    persona: ({ persona, response }) => {
-      if (persona === 'general_public' || persona === 'critic') {
-        setResponses(prev => ({ ...prev, [persona]: response }));
-      }
-    },
-    mad: ({ mad_agent }) => setMadAgent(mad_agent),
-    script: ({ script }) => setScript(script),
-    audio: ({ audio }) => {
-      console.log('Audio received from SSE:', audio);
-      setAudioSrc(`http://localhost:5000${audio}`);
-    },
-  });
+
+  // manual SSE hookup
+  usePodcastSSE({ setStage, setResponses, setScript, setAudioSrc });
+
 
   const handleButtonClick = (buttonName: string) => {
     setActiveButtons(prev => ({
@@ -111,36 +108,48 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     };
   }, [currentStep]);
 
-  useEffect(() => {
-  fetch('http://localhost:5000/api/generate', { 
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: title })
-  })
-  .then(res => res.json())
-  .then(data => {
-    console.log('API audio URL:', data.audio_url);
-    setScript(data.final_script.map((s: [string, string]) => `**${s[0]}:** ${s[1]}`).join('\n\n'));
-    setResponses({ general_public: data.responses[0], critic: data.responses[1] });
-    setAudioSrc(`http://localhost:5000${data.audio_url}`);
-    setLoading(false);
-  })
-  .catch(console.error);
-}, [title]);
 
-  const CurrentIcon = agentSteps[currentStep].icon;
+
+  // Kick off the job
+  useEffect(() => {
+    fetch('http://localhost:5000/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: title })
+    }).catch(console.error);
+  }, [title]);
+
+  // Animate the loading dots
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveDot(d => (d + 1) % 3);
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
 
   const LoadingDots = () => (
     <div className="flex items-center gap-1 ml-3">
-      {[0, 1, 2].map((idx) => (
+      {[0, 1, 2].map(i => (
         <div
-          key={idx}
-          className={`w-2 h-2 rounded-full border-2 border-[#9392E6] ${activeDot === idx ? 'bg-[#9392E6]' : ''}`}
+          key={i}
+          className={`w-2 h-2 rounded-full border-2 border-[#9392E6] ${
+            activeDot === i ? 'bg-[#9392E6]' : ''
+          }`}
         />
       ))}
     </div>
   );
   
+  // Header text per stage
+  const headerText = {
+    crawling: 'Agent generating content',
+    initialResponses: 'Initial responses ready – Agents working on content',
+    debate: 'Debating & synthesizing content',
+    scriptReady: 'Final script ready – Generating audio',
+    audioGenerating: 'Audio file is getting generated',
+    audioError: 'Audio generation failed',
+    audioReady: 'Podcast generated!'
+  }[stage];
 
   return (
     <div className="w-full max-w-[900px] mx-auto p-8">
@@ -148,62 +157,56 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
       {/* Title */}
       <h1 className="text-white text-2xl mb-6">{title}</h1>
 
-      {/* Agent Generating Content Box */}
+      {/* Stage Header */}
       <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
         <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
           <div className="flex items-center">
-            Agent generating content
-            {isLoading && <LoadingDots />}
+            {headerText}
+            {stage !== 'audioReady' && <LoadingDots />}
           </div>
         </div>
       </div>
 
-      {!loading && responses.general_public && responses.critic && (
-        <div className="grid grid-cols-2 gap-6 mb-6">
-          <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-            <span className="text-[#A1A1A1] text-sm"> Response1</span>
-            <div className="text-gray-300 mt-2">
-              <Markdown>{responses.general_public}</Markdown>
+      {/* 2 Initial Responses */}
+      {['initialResponses', 'debate', 'scriptReady', 'audioGenerating', 'audioReady'].includes(stage) &&
+        responses.general_public &&
+        responses.critic && (
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+              <span className="text-[#A1A1A1] text-sm">Response 1</span>
+              <div className="text-gray-300 mt-2">
+                <Markdown>{responses.general_public}</Markdown>
+              </div>
+            </div>
+            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+              <span className="text-[#A1A1A1] text-sm">Response 2</span>
+              <div className="text-gray-300 mt-2">
+                <Markdown>{responses.critic}</Markdown>
+              </div>
             </div>
           </div>
-          <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-            <span className="text-[#A1A1A1] text-sm"> Response2</span>
-            <div className="text-gray-300 mt-2">
-              <Markdown>{responses.critic}</Markdown>
-            </div>
-          </div>
-        </div>
       )}
 
-      {!script && madAgent && (
-        <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6 text-[#A1A1A1] text-center">
-          MAD debate ongoing... Evaluating: <strong>{madAgent}</strong>
-        </div>
-      )}
-
-      {script ? (
+      {/* Final Script */}
+      {['scriptReady', 'audioGenerating', 'audioReady'].includes(stage) && script && (
         <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
           <span className="text-[#A1A1A1] text-sm">Generated Script</span>
           <div className="text-gray-300 mt-2">
             <Markdown>{script}</Markdown>
           </div>
         </div>
-      ) : (
-        !loading && <div className="text-[#A1A1A1] text-center py-4">Generating your script...</div>
       )}
 
-
       {/* Audio Player */}
-      {audioSrc ? (
+      {stage === 'audioReady' && audioSrc ? (
         <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
           <audio controls className="w-full">
             <source src={audioSrc} type="audio/wav" />
             Your browser does not support the audio element.
           </audio>
+          <div className="mt-2 text-[#A1A1A1] text-center">Podcast generated!</div>
         </div>
-      ) : (
-        <div className="text-white">Audio is not loaded yet...</div>
-      )}
+      ) : null}
       </div>
 
       {/* Agent Steps */}

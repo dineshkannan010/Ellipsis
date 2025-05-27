@@ -1,11 +1,13 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from agent.crawler import crawler
 from agent.generator import summarize_contents
 from agent.voice import text_2_audio
 from agent.generator import load_prompt_template
 from dotenv import load_dotenv
 from flask_sse import sse
-from argparse import Namespace
+from types import SimpleNamespace as Namespace
+from threading import Thread
+
 
 api_routes = Blueprint('api', __name__)
 
@@ -37,41 +39,55 @@ def disconnect_platform():
 def get_connected_platforms():
     return jsonify({"connected_platforms": connected_socials}), 200
 
+
+def _run_pipeline(query: str, app):
+    # push the Flask app context so current_app works
+    with app.app_context():
+        # 1) Crawl
+        sse.publish({"status": "crawler_started"}, type="status")
+        args = Namespace(
+            url="https://www.nytimes.com/sitemaps/new/news.xml.gz",
+            chunk_size=1000,
+            max_depth=3,
+            max_concurrent=10
+        )
+        url_to_text = crawler(args)
+        sse.publish({"status": "content_crawled"}, type="status")
+
+        # 2) Initial persona scripts
+        sse.publish({"status": "initial_response_generation_started"}, type="status")
+        responses, final_script = summarize_contents(url_to_text, sse)
+
+        # 3) Publish final script
+        formatted = "\n\n".join(f"**{sp}:** {ln}" for sp, ln in final_script)
+        sse.publish({"script": formatted}, type="script")
+        sse.publish({"status": "script_ready"}, type="status")
+
+        # 4) Generate audio
+        sse.publish({"status": "audio_generation_started"}, type="status")
+        try:
+            audio_file = text_2_audio(final_script)
+        except Exception as e:
+            current_app.logger.exception("TTS generation failed")
+            sse.publish({
+                "status": "audio_error",
+                "message": str(e)
+            }, type="status")
+            return
+        sse.publish({"audio": f"/audio/{audio_file}"}, type="audio")
+        sse.publish({"status": "podcast_generated"}, type="status")
+
+
 @api_routes.route('/generate', methods=['POST'])
 def generate():
-    # data = request.json
-    # query = data.get('query')
-    args = Namespace(
-        url="https://www.nytimes.com/sitemaps/new/news.xml.gz",
-        chunk_size=1000,
-        max_depth=3,
-        max_concurrent=10
-    )
+    data = request.json or {}
+    query = data.get("query", "")
 
-    # Step 1: Notify frontend crawling started
-    sse.publish({"status": "crawler_started"}, type='status')
+    # capture the true Flask app so the worker thread can push context
+    app_obj = current_app._get_current_object()
 
-    url_to_text = crawler(args)  # modify crawler to accept direct queries
-    sse.publish({"status": "content_crawled"}, type='status')
+    # fire-and-forget
+    Thread(target=_run_pipeline, args=(query, app_obj), daemon=True).start()
 
-    # Step 2: Initial responses generation
-    sse.publish({"status": "initial_response_generation_started"}, type='status')
-
-    responses, final_script = summarize_contents(url_to_text, sse)  # Pass sse for live updates
-
-    # Step 3: Notify frontend audio generation started
-    sse.publish({"status": "audio_generation_started"}, type='status')
-
-    # Generate audio from the script
-    audio_path = text_2_audio(final_script)  # Modify function to return audio file path
-
-    # Publish audio URL to frontend via SSE
-    sse.publish({"audio": f"/audio/{audio_path}"}, type='audio')
-    print(f"SSE Audio URL sent: /audio/{audio_path}")
-    return jsonify({
-        "responses": responses,
-        "final_script": final_script,
-        "audio_url": f"/audio/{audio_path}"
-    })
-
-
+    # immediately return so the frontend POST doesn’t hang
+    return jsonify(success=True), 202

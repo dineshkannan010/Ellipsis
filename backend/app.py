@@ -15,6 +15,7 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 
 app.config["REDIS_URL"] = "redis://localhost:6380"
+app.config["SSE_REDIS_URL"] = app.config["REDIS_URL"]
 
 # Initialize session handling for the app.
 Session(app)
@@ -38,4 +39,5 @@ def audio(filename):
     return send_from_directory('static/audio', filename, mimetype='audio/wav')
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # enable threading so /stream can stay alive while /generate runs
+    app.run(debug=True, port=5000, threaded=True)
