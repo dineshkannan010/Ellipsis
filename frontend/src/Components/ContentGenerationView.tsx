@@ -64,7 +64,11 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     takeAway: false,
     growth: false,
   });
+  
+  // bottom input for next round
+  const [nextPrompt, setNextPrompt] = useState<string>('');
 
+  // State for podcast generation
   const [stage, setStage] = useState<Stage>('crawling');
   const [responses, setResponses] = useState<{ general_public?: string; critic?: string }>({});
   const [script, setScript] = useState<string>('');
@@ -82,31 +86,26 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
     }));
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsContentVisible(false);
-      setTimeout(() => {
-        setCurrentStep((prev) => (prev + 1) % agentSteps.length);
-        setIsContentVisible(true);
-      }, 200);
-    }, agentSteps[currentStep].duration);
+  // helper to submit next prompt
+  const canSubmitNext = stage === 'audioReady';
+  const handleNextSubmit = () => {
+    if (!canSubmitNext || !nextPrompt.trim()) return;
+    // reset runner state
+    setStage('crawling');
+    setResponses({});
+    setScript('');
+    setAudioSrc('');
+    setCurrentStep(0);
 
-    const responseTimer = setTimeout(() => {
-      setResponseGenerated(true);
-      setIsLoading(false);
-    }, 12000);
+    // fire next job
+    fetch('http://localhost:5000/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: nextPrompt }),
+    }).catch(console.error);
 
-    // Animate the dots
-    const dotTimer = setInterval(() => {
-      setActiveDot((prev) => (prev + 1) % 3);
-    }, 400);
-
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(responseTimer);
-      clearInterval(dotTimer);
-    };
-  }, [currentStep]);
+    setNextPrompt('');
+  };
 
 
 
@@ -168,7 +167,7 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
       </div>
 
       {/* 2 Initial Responses */}
-      {['initialResponses', 'debate', 'scriptReady', 'audioGenerating', 'audioReady'].includes(stage) &&
+      {['initialResponses', 'debate', 'scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) &&
         responses.general_public &&
         responses.critic && (
           <div className="grid grid-cols-2 gap-6 mb-6">
@@ -188,7 +187,7 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
       )}
 
       {/* Final Script */}
-      {['scriptReady', 'audioGenerating', 'audioReady'].includes(stage) && script && (
+      {['scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) && script && (
         <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
           <span className="text-[#A1A1A1] text-sm">Generated Script</span>
           <div className="text-gray-300 mt-2">
@@ -216,13 +215,14 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
         <div className="w-full max-w-[900px] mx-auto px-8">
           <div className="bg-[#1f1f1f]/90 backdrop-blur-lg border border-[#313131] rounded-lg p-4">
             <textarea
+              value={nextPrompt}
+              onChange={e => setNextPrompt(e.target.value)}
               placeholder="Post About..."
               className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none focus:ring-1 focus:ring-[#9493E7] rounded"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  handleButtonClick('arrow');
-                  setTimeout(() => handleButtonClick('arrow'), 200);
+                  handleNextSubmit();
                 }
               }}
             />
@@ -323,7 +323,8 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ ti
                 </button>
 
                 <button 
-                  onClick={() => handleButtonClick('arrow')}
+                  onClick={handleNextSubmit}
+                  disabled={!canSubmitNext}
                   className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
                     activeButtons.arrow 
                       ? 'bg-[#9388B3] text-[#313131]' 

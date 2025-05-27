@@ -33,7 +33,7 @@ def text_2_audio(texts = ''):
     'S8' : 'zoe'
     }
     
-    orpheus = OrpheusCpp(verbose=False, lang="en", n_gpu_layers=0)
+    orpheus = OrpheusCpp(verbose=False, lang="en")
 
     # buffer = []
     # for i, (sr, chunk) in enumerate(orpheus.stream_tts_sync(text, options={"voice_id": "tara"})):
