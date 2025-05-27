@@ -76,34 +76,35 @@ def call_perplexity(prompt: str) -> str:
 # Summarization logic
 def summarize_contents(content: Dict[str, str], sse=None) -> Dict[str, str]:
     prompt_template = load_prompt_template()
+    initial_responses = []
+    for persona in [sarah, john]:
+        prompt = prompt_template.format(
+            persona=persona,
+            content=content,  # Trim if needed
+            duration=5,
+            n_speakers=2
+        )
+        
+        reply = call_perplexity(prompt)
+        initial_responses.append(reply)
 
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        google_api_key=os.getenv("GOOGLE_API_KEY"),
-        temperature=0.8
-    )
-    initial_respones = []
-    for i_name in [sarah,john]:
-        prompt = prompt_template.format(persona=i_name,news_content=content[:10000],duration= 5, n_speakers=2)  # Trim long input
-        response = llm.invoke(prompt)
-        initial_respones.append(response.content)
     # print(f"Total initial response: {initial_respones}")
     # print(f"initial response 0: {initial_respones[0]}")
     
     # print(f"\n initial response 1: {initial_respones[1]}")
 
     if sse:
-        sse.publish({"persona": "Sarah", "response": initial_respones[0]}, type='persona')
-        sse.publish({"persona": "John", "response": initial_respones[1]}, type='persona')
+        sse.publish({"persona": "Sarah", "response": initial_responses[0]}, type='persona')
+        sse.publish({"persona": "John", "response": initial_responses[1]}, type='persona')
 
     # Create a debate between the two personas
-    mad_agents = MAD(initial_respones[0], initial_respones[1])
+    mad_agents = MAD(content, initial_responses[0], initial_responses[1])
     
     if sse:
         sse.publish({"status": "mad_started"}, type='status')
 
-    conversation= mad_agents.debate(llm).content
-    return initial_respones, parse_transcript(conversation)
+    conversation = mad_agents.debate()
+    return initial_responses, parse_transcript(conversation)
 
 # Transcript parsing
 def parse_transcript(transcript: str):

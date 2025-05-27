@@ -1,8 +1,6 @@
 from flask import Blueprint, jsonify, request, current_app
-from agent.crawler import crawler
 from agent.generator import summarize_contents
 from agent.voice import text_2_audio
-from agent.generator import load_prompt_template
 from dotenv import load_dotenv
 from flask_sse import sse
 from types import SimpleNamespace as Namespace
@@ -43,22 +41,12 @@ def get_connected_platforms():
 def _run_pipeline(query: str, app):
     # push the Flask app context so current_app works
     with app.app_context():
-        # 1) Crawl
-        sse.publish({"status": "crawler_started"}, type="status")
-        args = Namespace(
-            url="https://www.nytimes.com/sitemaps/new/news.xml.gz",
-            chunk_size=1000,
-            max_depth=3,
-            max_concurrent=10
-        )
-        url_to_text = crawler(args)
-        sse.publish({"status": "content_crawled"}, type="status")
 
-        # 2) Initial persona scripts
+        # 1) Initial persona scripts
         sse.publish({"status": "initial_response_generation_started"}, type="status")
-        responses, final_script = summarize_contents(url_to_text, sse)
+        responses, final_script = summarize_contents(query, sse)
 
-        # 3) Publish final script
+        # 2) Publish final script
         formatted = "\n\n".join(f"**{sp}:** {ln}" for sp, ln in final_script)
         sse.publish({"script": formatted}, type="script")
         sse.publish({"status": "script_ready"}, type="status")

@@ -109,7 +109,7 @@ class MAD:
             )
 
     def debate(self) -> str:
-        for _ in range(self.rounds):
+        for i in range(self.rounds):
             for name, agent_text in self.agents.items():
                 prompt = self.template.format(
                     source_text= self.source_text,
@@ -119,14 +119,14 @@ class MAD:
                     role_description = agent_text,
                     agent_name = name)  # Trim long input
                 if sse:
-                    sse.publish({"mad_agent": name, "round": rounds+1}, type='mad')
+                    sse.publish({"mad_agent": name, "round": i+1}, type='mad')
                 time.sleep(10)
                 
-                response = llm.invoke(prompt)
-                print(f"Round {rounds+1} - {name}: {response}")
-                self.history.append(response)
+                response = call_perplexity(prompt)
+                print(f"Round {i+1} - {name}: {response}")
+                self.history.append(f'Agent : {name}, response : {response}')
                 
-        return self._get_final_response(llm)
+        return self._get_final_response()
 
     def _get_final_response(self) -> str:
         synthesis_template = PromptTemplate(
@@ -146,20 +146,18 @@ class MAD:
             {compared_text_two}  
             ----------------------
 
-            [Review Summary from All Referees]  
-            {all_reviews_summary}
+            [REVIEW SUMMARY FROM PANEL]  
+            {all_reviews_summary}  
+            ----------------------
 
-            [System]  
-            You are the **Final Synthesis Agent**.
+            Carefully review the topic, both draft scripts, and the panel’s feedback. Then write a **new and improved podcast script** that:
 
-            Your task is to carefully read the user’s question, both assistant responses, and the referees’ review summary. Using this information, write a **new and improved answer** that:
+            - Weaves together the strengths of both Sarah and John’s versions  
+            - Fixes issues or gaps highlighted by the reviewers  
+            - Sounds like something a real person would say out loud—natural, clear, and emotionally engaging  
+            - Follows the intended podcast structure and tone
 
-            - Incorporates the strengths of both Assistant 1 and Assistant 2
-            - Addresses the weaknesses or gaps noted by the reviewers
-            - Is more helpful, accurate, relevant, and detailed than either original response
-            - Uses clear, fluent, and natural language
-
-            This response will serve as **Text 3**, the best possible version based on all available input.
+            Remember dont generate the reasons or discussions only generate the final podcast script, I repeat; generate only the final podcast script.
 
             Now, please write the final podcast script.
             """
