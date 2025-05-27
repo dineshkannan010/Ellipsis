@@ -1,8 +1,7 @@
-import { ArrowRight  , X, Plus, Loader2, MicIcon, Menu } from "lucide-react";
-import React, { useState } from "react";
-import { Badge } from "@/Components/ui/badge";
+import { ArrowRight, X, Plus, Loader2, MicIcon, Menu } from "lucide-react";
+import React, { useState, KeyboardEvent, useEffect } from "react";
 import { Button } from "@/Components/ui/button";
-import { Card, CardContent } from "@/Components/ui/card";
+import { Card } from "@/Components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -10,13 +9,44 @@ import {
 } from "@/Components/ui/dialog";
 import { fetchTrendingTopics } from "@/services/trendingService";
 
+import { connectPlatform, disconnectPlatform, getConnectedPlatforms, fetchOAuthUrl } from "@/services/socialService";
+
+interface HomePageProps {
+  onNavigate: (title: string) => void;
+}
+
 interface TrendingTopic {
   title: string;
   description: string;
   category: string;
 }
 
-export const HomePage = (): JSX.Element => {
+interface Platform {
+  name: string;
+  icon: string;
+  className: string;
+}
+
+// Social media platforms
+const socialPlatforms: Platform[] = [
+  {
+      name: "LinkedIn",
+      icon: "/linkedin.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+    {
+      name: "Reddit",
+      icon: "/reddit.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+    {
+      name: "Twitter",
+      icon: "/twitter.svg",
+      className: "bg-[#313131] hover:bg-[#313131]/80",
+    },
+  ];
+
+export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   const [postContent, setPostContent] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
@@ -26,8 +56,23 @@ export const HomePage = (): JSX.Element => {
   const [expandedTopicIndex, setExpandedTopicIndex] = useState<number | null>(null);
   const [showTrendingTopics, setShowTrendingTopics] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [activeButtons, setActiveButtons] = useState({
+    trending: false,
+    opinion: false,
+    takeAway: false,
+    growth: false,
+    mic: false,
+    arrow: false,
+  });
 
   const handleToggleSidebar = () => setSidebarOpen(!isSidebarOpen);
+
+  const handleButtonClick = (buttonName: string) => {
+    setActiveButtons(prev => ({
+      ...prev,
+      [buttonName]: !prev[buttonName as keyof typeof prev]
+    }));
+  };
 
   // Data for category badges
   const categories = [
@@ -67,74 +112,93 @@ export const HomePage = (): JSX.Element => {
     },
   ];
 
-  // Social media platforms
-  const socialPlatforms = [
-    {
-      name: "LinkedIn",
-      icon: "/linkedin.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Reddit",
-      icon: "/reddit.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Twitter",
-      icon: "/twitter.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-  ];
+  useEffect(() => {
+    loadConnectedPlatforms();
+  }, []);
 
-  const handleConnect = (platformName: string) => {
-    setConnectedPlatforms((prev) => [...prev, platformName]);
+  const loadConnectedPlatforms = async () => {
+    const platforms = await getConnectedPlatforms();
+    setConnectedPlatforms(platforms);
   };
 
-  const handleDisconnect = (platformName: string) => {
-    setConnectedPlatforms((prev) => prev.filter((name) => name !== platformName));
+  const handleConnect = async (platformName: string) => {
+    try {
+      const oauthUrl = await fetchOAuthUrl(platformName);
+      window.location.href = oauthUrl; // OAuth redirect
+      await connectPlatform(platformName);
+      setConnectedPlatforms((prev) => [...prev, platformName]);
+    } catch (err) {
+      console.error("Connection error:", err);
+    }
+  };
+
+  const handleDisconnect = async (platformName: string) => {
+    try {
+      await disconnectPlatform(platformName);
+      setConnectedPlatforms((prev) => prev.filter((name) => name !== platformName));
+    } catch (err) {
+      console.error("Disconnection error:", err);
+    }
   };
 
   const unconnectedPlatforms = socialPlatforms.filter(
     (platform) => !connectedPlatforms.includes(platform.name)
   );
 
+  const handlePostContentKeyPress = async (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && postContent.trim()) {
+      e.preventDefault();
+      console.log('Navigating to ContentGenerationView:', postContent);
+      onNavigate(postContent);
+    }
+  };
+
+  const handleTrendingTopicClick = (topic: TrendingTopic) => {
+    onNavigate(topic.title);
+  };
+
+
   return (
-  <div className="bg-gradient-to-b from-[#1f1f1f] to-[#121212] flex justify-center items-center w-full min-h-screen">
+    <div className="bg-gradient-to-b from-[#1f1f1f] to-[#121212] flex justify-center items-center w-full min-h-screen">
       <div className="w-full max-w-[1280px] px-4 md:px-0 relative">
         {/* Sidebar Toggle Button */}
         <button
           className="fixed top-4 left-4 z-30 text-white"
           onClick={handleToggleSidebar}
         >
-          {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          {isSidebarOpen ? (
+            <X className="w-6 h-6" />
+          ) : (
+            <img src="/steppers.svg" alt="Steppers" className="w-[30px] h-[30px]" />
+          )}
         </button>
 
         {/* Sidebar */}
         <div
-  className={`fixed left-0 top-0 h-screen bg-[#121212] transition-transform duration-300 ease-in-out z-20
-    ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} w-[153px]`}
->
-  <div className="flex flex-col gap-6 pt-10 px-4">
-    <div className="flex items-center justify-start gap-3 ">
-      <img src="/steppers.svg" alt="Steppers" className="w-[45px] h-[45px]" />
-      <span className="font-['Inter'] text-[14px] text-[#f8f8f8]">Ellipsis</span>
-    </div>
+          className={`fixed left-0 top-0 h-screen bg-[#121212] transition-transform duration-300 ease-in-out z-20
+          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"} w-[153px]`}
+        >
+        <div className="flex flex-col gap-6 pt-10 px-4">
+          <div className="flex items-center justify-start gap-3 ">
+          <img src="/steppers.svg" alt="Steppers" className="w-[45px] h-[45px]" />
+          <span className="font-['Inter'] text-[14px] text-[#f8f8f8]">Ellipsis</span>
+        </div>
 
-    <div className="flex items-center justify-start gap-2 opacity-80">
-      <img className="w-[20px] h-[20px]" alt="Finance mode" src="/finance-mode.png" />
-      <span className="font-['Inter'] text-[12px] text-[#a0a0a0]">Performance</span>
+        <div className="flex items-center justify-start gap-2 opacity-80">
+          <img className="w-[20px] h-[20px]" alt="Finance mode" src="/finance-mode.png" />
+          <span className="font-['Inter'] text-[12px] text-[#a0a0a0]">Performance</span>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
         {/* Main Content Area */}
         <div
-          className={`flex flex-col items-center justify-center gap-6 pt-24 pb-12 transition-margin duration-300 ease-in-out
+          className={`flex flex-col items-center justify-center gap-6 pt-8 pb-12 transition-margin duration-300 ease-in-out
             ${isSidebarOpen ? "md:ml-[153px]" : "md:ml-0"}`}
         >
         {/* Welcome Section */}
         <div className="text-center">
-          <img src="/steppers.svg" alt="Steppers" className="mx-auto mb-8 w-[77px] h-[77px]" />
+          <img src="/steppers.svg" alt="Steppers" className="mx-auto mb-6 w-[77px] h-[77px]" />
           <h1 className="font-['Inter'] font-medium text-xl md:text-2xl text-white">
             Welcome to <span className="text-[#9392e6]">Ellipsis</span>
           </h1>
@@ -145,76 +209,159 @@ export const HomePage = (): JSX.Element => {
           Ellipsis is an AI content assistant that writes, refines, and schedules posts, optimising tone, strategy, and timing to grow your online presence with ease.
         </p>
 
-        {/* Connected Platforms */}
-        {connectedPlatforms.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4">
-            {socialPlatforms
+        {/* Connected Platforms and Connect Button Row */}
+        <div className="flex flex-row items-center justify-center gap-4">
+          {/* Connect Socials Button */}
+          {unconnectedPlatforms.length > 0 && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131] transition-all duration-200 border-none text-[#a1a1a1]">
+                  Connect Socials
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#1F1F1F] border border-[#313131] rounded-[24px] max-w-[600px] p-8">
+                <div className="flex flex-col items-center mb-16">
+                  <h2 className="text-white text-2xl">Connect Your Socials</h2>
+                </div>
+                <div className="flex flex-row gap-4 justify-center">
+                  {unconnectedPlatforms.map(platform => (
+                    <button
+                      key={platform.name}
+                      onClick={() => handleConnect(platform.name)}
+                      className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
+                    >
+                      <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
+                      <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">{platform.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <button 
+                  onClick={() => setIsDialogOpen(false)} 
+                  className="absolute right-5 top-5 text-white/40 hover:bg-[#9388B3] hover:text-[#313131] p-2 rounded-full transition-all duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* Connected Platform Buttons */}
+          {connectedPlatforms.length > 0 && (
+            socialPlatforms
               .filter(platform => connectedPlatforms.includes(platform.name))
               .map(platform => (
-                <button key={platform.name} onClick={() => handleDisconnect(platform.name)} className="flex items-center gap-2 px-3 py-1.5 bg-[#313131]/80 rounded-lg hover:bg-[#313131] transition">
-                  <img src={platform.icon} alt={platform.name} className="w-5 h-5" />
-                  <span className="text-[#a1a1a1] text-sm">{platform.name}</span>
-                </button>
-              ))}
-          </div>
-        )}
-
-        {/* Connect Socials Button */}
-        {unconnectedPlatforms.length > 0 && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-[#1F1F1F]/80 border border-[#313131] text-[#a1a1a1] rounded-lg px-5 py-2 hover:bg-[#313131] transition">
-                Connect Socials
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-[#1F1F1F] border-[#313131] rounded-xl max-w-[400px]">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-white">Connect Your Socials</h2>
-                <button onClick={() => setIsDialogOpen(false)} className="text-[#a1a1a1] hover:text-white">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              {unconnectedPlatforms.map(platform => (
                 <button
                   key={platform.name}
-                  onClick={() => handleConnect(platform.name)}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg text-[#a1a1a1] hover:bg-[#313131] transition ${platform.className}`}
+                  onClick={() => handleDisconnect(platform.name)}
+                  className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
                 >
-                  <img src={platform.icon} alt={platform.name} className="w-6 h-6" />
-                  {platform.name}
+                  <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
+                  <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">{platform.name}</span>
                 </button>
-              ))}
-            </DialogContent>
-          </Dialog>
-        )}
+              ))
+          )}
+        </div>
 
         {/* Post Creation Card */}
         <Card className="w-full max-w-[722px] bg-[#1f1f1f]/80 backdrop-blur-sm border border-[#313131] rounded-lg p-4 md:p-6">
           <textarea
             value={postContent}
             onChange={e => setPostContent(e.target.value)}
+            onKeyDown={handlePostContentKeyPress}
             placeholder="Post About..."
             className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none"
           />
 
           <div className="flex flex-wrap gap-2 md:gap-4 items-center">
             {categories.map((category, idx) => (
-              <Badge key={idx} className="bg-[#313131]/80 text-[#a1a1a1] rounded-lg hover:bg-[#313131] transition cursor-pointer" onClick={category.onClick}>
-                <img className="w-5 h-5 opacity-80" src={category.icon} alt={category.alt} />
+              <button 
+                key={idx} 
+                onClick={() => {
+                  category.onClick?.();
+                  handleButtonClick(category.label.toLowerCase());
+                  if (category.label === "Trending") {
+                    setShowTrendingTopics(!showTrendingTopics);
+                  }
+                }}
+                className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
+                  activeButtons[category.label.toLowerCase() as keyof typeof activeButtons]
+                    ? 'bg-[#9388B3] text-[#313131]' 
+                    : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
+                }`}
+              >
+                <img 
+                  className={`w-5 h-5 transition-opacity duration-200 ${
+                    activeButtons[category.label.toLowerCase() as keyof typeof activeButtons] 
+                      ? 'brightness-0' 
+                      : 'opacity-80 group-hover:brightness-0'
+                  }`} 
+                  src={category.icon} 
+                  alt={category.alt} 
+                />
                 <span className="ml-1.5 text-xs whitespace-nowrap">{category.label}</span>
-              </Badge>
+              </button>
             ))}
 
             <div className="flex items-center gap-2 ml-auto">
-              <Button variant="ghost" className="bg-[#313131]/80 rounded-full hover:bg-[#313131] transition">
-                <MicIcon className="w-4 h-4 text-[#9388B3]" />
-              </Button>
+              <button 
+                onClick={() => handleButtonClick('mic')}
+                className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
+                  activeButtons.mic 
+                    ? 'bg-[#9388B3]' 
+                    : 'bg-[#313131]/80 hover:bg-[#9388B3]'
+                }`}
+              >
+                <MicIcon className={`w-4 h-4 transition-colors duration-200 ${
+                  activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
+                }`} />
+              </button>
 
-              <Button variant="ghost" className="bg-[#313131]/80 rounded-full hover:bg-[#313131] transition">
-                <ArrowRight className="w-4 h-4 text-[#9388B3]" />
-              </Button>
+              <button 
+                onClick={() => {
+                  handleButtonClick('arrow');
+                  if (postContent.trim()) {
+                    onNavigate(postContent);
+                  }
+                }}
+                className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
+                  activeButtons.arrow 
+                    ? 'bg-[#9388B3] text-[#313131]' 
+                    : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
+                }`}
+              >
+                <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
+                  activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
+                }`} />
+              </button>
             </div>
           </div>
+
+          {/* Trending Topics Display */}
+          {showTrendingTopics && (
+            <div className="mt-4 bg-[#1F1F1F] rounded-lg">
+              {isLoadingTopics ? (
+                <div className="flex justify-center p-4">
+                  <Loader2 className="w-6 h-6 text-[#9392E6] animate-spin" />
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {trendingTopics.map((topic, index) => (
+                    <div
+                      key={index}
+                      onClick={() => {
+                        handleTrendingTopicClick(topic);
+                        handleButtonClick('trending');
+                      }}
+                      className="flex items-center px-4 py-3 hover:bg-[#9388B3] transition-all duration-200 group cursor-pointer"
+                    >
+                      <Plus className="w-5 h-5 text-[#a1a1a1] group-hover:text-[#313131] mr-3" />
+                      <span className="text-[#a1a1a1] text-sm group-hover:text-[#313131]">{topic.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </div>

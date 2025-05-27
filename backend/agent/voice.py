@@ -14,12 +14,15 @@ from orpheus_cpp import OrpheusCpp
 import numpy as np
 from dotenv import load_dotenv
 from pydub import AudioSegment
+import os
 load_dotenv()
 # List your WAV files in order
 
 
 
-voices = {
+
+def text_2_audio(texts = ''):
+    voices = {
     'S1' : 'tara',
     'S2' : 'leo',
     'S3' : 'jess',
@@ -28,8 +31,8 @@ voices = {
     'S6' : 'mia',
     'S7' : 'zac',
     'S8' : 'zoe'
-}
-def text_2_audio(texts = ''):
+    }
+    
     orpheus = OrpheusCpp(verbose=False, lang="en")
 
     # buffer = []
@@ -44,9 +47,9 @@ def text_2_audio(texts = ''):
     for i,(v,text) in enumerate(texts):
         buffer = []
         wav_file = f"segment_{i}.wav"
-        for j, (sr, chunk) in enumerate(orpheus.stream_tts_sync(text, options={"voice_id": f"{voices[v]}"})):
+        for _, chunk in orpheus.stream_tts_sync(text, options={"voice_id": voices[v]}):
             buffer.append(chunk)
-            print(f"Generated chunk {j}")
+            print(f"Generated chunk {i}")
         buffer = np.concatenate(buffer, axis=1)
         file_paths.append(wav_file)
         write(wav_file, 24_000, np.concatenate(buffer))
@@ -54,10 +57,12 @@ def text_2_audio(texts = ''):
     combined = AudioSegment.empty()
 
     for wav_file in file_paths:
-        audio = AudioSegment.from_wav(wav_file)
-        combined += audio
+        combined += AudioSegment.from_wav(wav_file)
 
-    combined.export("final_podcast.wav", format="wav")
+    audio_output_dir = "static/audio"
+    os.makedirs(audio_output_dir, exist_ok=True)
+    final_audio_path = os.path.join(audio_output_dir, "final_podcast.wav")
+    combined.export(final_audio_path, format="wav")
 
+    return "final_podcast.wav"
 
-text_2_audio()

@@ -1,154 +1,175 @@
 import os
-from typing import Dict
-from dotenv import load_dotenv
-from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 import time
+import requests
+from langchain_core.prompts import PromptTemplate
+from dotenv import load_dotenv
 
+load_dotenv()
+from flask_sse import sse
+load_dotenv()
+
+# Role prompts
 general_public_prompt = """
-You are now General Public, one of the referees in this task. You are interested in the story and looking for updates on the investigation. Please think critically by yourself and note that it’s your responsibility to choose one of which is the better first.
+You are General Public, a curious and engaged listener. You're drawn to podcasts that are easy to follow, emotionally resonant, and worth sharing. Your role is to evaluate which version feels more natural, relatable, and informative from a regular listener’s perspective.
+
+Please share your honest thoughts on what worked, what felt off, and which version you would be more likely to keep listening to—and why.
 """
 
 critic_prompt = """
-You are now Critic, one of the referees in this task. You will check fluent writing, clear sentences, and good wording in summary writing. Your job is to question others judgment to make sure their judgment is well-considered and offer an alternative solution if two responses are at the same level.
+You are Critic, a language-savvy referee who values clarity, style, and precision. Your role is to evaluate how well each script flows, how strong the wording is, and whether the language feels polished and professional.
+
+Please highlight strengths and flaws in tone, structure, or sentence quality. Suggest what could be improved to make the script sound smoother and more refined.
 """
 
 author_prompt = """
-You are News Author, one of the referees in this task. You will focus on the consistency with the original article. Please help other people to determine which response is the better one.
+You are News Author, an experienced writer focused on factual accuracy and narrative coherence. Your job is to assess how well each script aligns with the core content and whether the story stays true to its source.
+
+Please point out any factual inconsistencies, missing context, or areas that could benefit from tighter storytelling based on the original article.
+
 """
 
 phsycologist_prompt = """
-Psychologist You are Psychologist, one of the referees in this task. You will study human behavior and mental processes in order to understand and explain human behavior. Please help other people to determine which response is the better one.
+You are Psychologist, a thoughtful expert in human behavior and emotional engagement. Your role is to evaluate how well each script resonates with human emotions and whether it reflects psychological depth and empathy.
+
+Please analyze the emotional tone, audience connection, and human relatability in both scripts. Suggest improvements to make the content more compelling on a human level.
 """
 
-scientis_prompt = """
-You are Scientist, one of the referees in this task. You are a professional engaged in systematic study who possesses a strong background in the scientific method, critical thinking, and problem-solving abilities. Please help other people to determine which response is the better one.
+scientist_prompt = """
+You are Scientist, a critical thinker with a strong foundation in evidence, logic, and clarity. Your role is to assess how well each script presents facts, explains complex topics, and avoids misinformation.
+
+Please share which script communicates ideas more accurately and clearly. Offer suggestions to improve reasoning, factual grounding, or clarity of explanation.
 """
 
+# Perplexity call
+def call_perplexity(prompt: str) -> str:
+    url = "https://api.perplexity.ai/chat/completions"
+    headers = {"Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}"}
+    payload = {
+        "model": "sonar-reasoning-pro",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        "search": False,
+        "temperature": 0.2
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"]
 
+# MAD class
 class MAD:
-    def __init__(self, agent1: str, agent2: str, rounds = 3):
+    def __init__(self, source_text, agent1: str, agent2: str, rounds=3):
         self.rounds = rounds
         self.agent1_text = agent1
         self.agent2_text = agent2
-
+        self.history = []
+        self.source_text = source_text
         self.agents = {
-            'general_public' : general_public_prompt,
-            'critic':critic_prompt,
-            'author':author_prompt,
-            'phsycologist':phsycologist_prompt,
-            'scientist':scientis_prompt
+            'general_public': general_public_prompt,
+            'critic': critic_prompt,
+            'author': author_prompt,
+            'phsycologist': phsycologist_prompt,
+            'scientist': scientist_prompt
         }
 
         self.template = PromptTemplate(
-        input_variables=[
-            "source_text",        # the user question or source prompt
-            "compared_text_one",  # Assistant 1's answer
-            "compared_text_two",  # Assistant 2's answer
-            "chat_history",       # prior discussion among agents
-            "role_description",   # specific role description (e.g., General Public, Critic)
-            "agent_name"          # current agent's name
-        ],
-        template="""
-        [Question]  
-        {source_text}  
-
-        [The Start of Assistant 1’s Answer]  
-        {compared_text_one}  
-        [The End of Assistant 1’s Answer]  
-
-        [The Start of Assistant 2’s Answer]  
-        {compared_text_two}  
-        [The End of Assistant 2’s Answer]  
-
-        [System]  
-        We would like to request your feedback on the performance of two AI assistants in response to the user question displayed above.  
-        Please consider the **helpfulness, relevance, accuracy, and level of detail** of their responses. Each assistant receives an overall **score on a scale of 1 to 10**, where a higher score indicates better overall performance.
-
-        There are a few other referees assigned the same task — **it’s your responsibility to discuss with them and think critically before you make your final judgment**.
-
-        Here is your discussion history:  
-        {chat_history}
-
-        {role_description}
-
-        Now it’s your time to talk, please make your talk short and clear, {agent_name}!
-        """
-        )
-
-        self.history = []
-
-        self.source_text = """
-        You are part of a multi-agent brainstorming team tasked with creating a new podcast concept.
-        Your goal is to propose a podcast that is not only engaging and unique and strong potential to succeed.
-        """
-    
-    def debate(self, llm)->str:
-
-        for rounds in range(self.rounds):
-            for name, agent_text in self.agents.items():
-                prompt = self.template.format(
-                source_text= self.source_text,
-                compared_text_one= self.agent1_text,
-                compared_text_two = self.agent2_text,
-                chat_history = self.history,
-                role_description = agent_text,
-                agent_name = name)  # Trim long input
-                time.sleep(10)
-                response = llm.invoke(prompt)
-                
-                self.history.append(response)
-        return self._get_final_response(llm)
-
-    def _get_final_response(self,llm)->str:
-
-        final_synthesis_prompt = PromptTemplate(
-            input_variables=[
-                "source_text",         # original user question
-                "compared_text_one",   # Assistant 1's answer
-                "compared_text_two",   # Assistant 2's answer
-                "all_reviews_summary"  # feedback from reviewers (General Public, Critic, etc.)
-            ],
+            input_variables=["source_text", "compared_text_one", "compared_text_two", "chat_history", "role_description", "agent_name"],
             template="""
             [Question]  
-            {source_text}  
+            You are part of a multi-agent review panel focused on improving podcast scripts on the topic {source_text}
+            Your task is to evaluate two versions of a podcast segment created by different authors. Pay close attention to how natural, engaging, and listener-friendly each version sounds. Your goal is to help shape the podcast into something that flows like real conversation—warm, compelling, and easy to follow.
+            Think like a podcast listener: Which version sounds more human? Which one would keep you listening?
 
-            [The Start of Assistant 1’s Answer]  
+            [Sarah's podcast script]  
             {compared_text_one}  
-            [The End of Assistant 1’s Answer]  
+            ------  
 
-            [The Start of Assistant 2’s Answer]  
+            [John's podcast script]  
             {compared_text_two}  
-            [The End of Assistant 2’s Answer]  
-
-            [Review Summary from All Referees]  
-            {all_reviews_summary}
+            ------
 
             [System]  
-            You are the **Final Synthesis Agent**.
+            Think like an engaged listener:  
+            - Which version feels most **conversational** and **natural**?  
+            - Which one keeps you **hooked** from start to finish?  
+            - How well do they balance **storytelling**, **emotional resonance**, and **clear information**?
 
-            Your task is to carefully read the user’s question, both assistant responses, and the referees’ review summary. Using this information, write a **new and improved answer** that:
+            Rate each draft on a **1–10 scale** based on your role and the above parameters.
 
-            - Incorporates the strengths of both Assistant 1 and Assistant 2
-            - Addresses the weaknesses or gaps noted by the reviewers
-            - Is more helpful, accurate, relevant, and detailed than either original response
-            - Uses clear, fluent, and natural language
+            There are a few other referees assigned the same task — **it’s your responsibility to discuss with them and think critically before you make your final judgment**.
 
-            This response will serve as **Text 3**, the best possible version based on all available input.
+            Here is your discussion history:  
+            {chat_history}
 
-            Now, please write a single, complete, and improved answer to the user’s original question. Please make sure that you follow the same format as used by the content.
+            {role_description}
+
+            Now it’s your time to talk, please make your pointers clear and concise, {agent_name}!
             """
             )
 
-        prompt = final_synthesis_prompt.format(
-            source_text= self.source_text,
-            compared_text_one= self.agent1_text,
-            compared_text_two = self.agent2_text,
-            all_reviews_summary = self.history,
-            )  # Trim long input
-        response = llm.invoke(prompt)
+    def debate(self) -> str:
+        for i in range(self.rounds):
+            for name, agent_text in self.agents.items():
+                prompt = self.template.format(
+                    source_text= self.source_text,
+                    compared_text_one= self.agent1_text,
+                    compared_text_two = self.agent2_text,
+                    chat_history = self.history,
+                    role_description = agent_text,
+                    agent_name = name)  # Trim long input
+                if sse:
+                    sse.publish({"mad_agent": name, "round": i+1}, type='mad')
+                time.sleep(10)
+                
+                response = call_perplexity(prompt)
+                print(f"Round {i+1} - {name}: {response}")
+                self.history.append(f'Agent : {name}, response : {response}')
+                
+        return self._get_final_response()
 
-        return response
+    def _get_final_response(self) -> str:
+        synthesis_template = PromptTemplate(
+            input_variables=["source_text", "compared_text_one", "compared_text_two", "all_reviews_summary"],
+            template="""
+            [Task]  
+            You are the final editor of a podcast script on the topic: {source_text}.  
+            You’ve been given two draft scripts—one from Sarah and one from John—as well as feedback from a diverse panel of reviewers.
+
+            Your job is to combine the best parts of both scripts and use the panel’s feedback to create a final version that feels natural, emotionally resonant, and engaging to listeners.
+
+            [SARAH’S SCRIPT]  
+            {compared_text_one}  
+            ---------------------
+
+            [JOHN’S SCRIPT]  
+            {compared_text_two}  
+            ----------------------
+
+            [REVIEW SUMMARY FROM PANEL]  
+            {all_reviews_summary}  
+            ----------------------
+
+            Carefully review the topic, both draft scripts, and the panel’s feedback. Then write a **new and improved podcast script** that:
+
+            - Weaves together the strengths of both Sarah and John’s versions  
+            - Fixes issues or gaps highlighted by the reviewers  
+            - Sounds like something a real person would say out loud—natural, clear, and emotionally engaging  
+            - Follows the intended podcast structure and tone
+
+            Remember dont generate the reasons or discussions only generate the final podcast script, I repeat; generate only the final podcast script.
+
+            Now, please write the final podcast script.
+            """
+            )
+
+        prompt = synthesis_template.format(
+            source_text=self.source_text,
+            compared_text_one=self.agent1_text,
+            compared_text_two=self.agent2_text,
+            all_reviews_summary="\n".join(self.history)
+        )
+        return call_perplexity(prompt)
 
 
 
