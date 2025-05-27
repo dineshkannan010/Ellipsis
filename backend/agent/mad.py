@@ -45,10 +45,11 @@ def call_perplexity(prompt: str) -> str:
     payload = {
         "model": "sonar-reasoning-pro",
         "messages": [
-            #{"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
         ],
-        "search_domain_filter": ["nasa.gov", "wikipedia.org", "space.com"]
+        "search": False,
+        "temperature": 0.2
     }
     response = requests.post(url, headers=headers, json=payload)
     response.raise_for_status()
@@ -150,8 +151,7 @@ class MAD:
             - Sounds like something a real person would say out loud—natural, clear, and emotionally engaging  
             - Follows the intended podcast structure and tone
 
-            Your final script should feel like a well-produced segment: compelling, listener-friendly, and ready to record. Please remove any character in the below list
-            ['*', '\n'] as these characters confuses tts models.
+            Remember dont generate the reasons or discussions only generate the final podcast script, I repeat; generate only the final podcast script.
 
             Now, please write the final podcast script.
             """
@@ -164,3 +164,7 @@ class MAD:
             all_reviews_summary="\n".join(self.history)
         )
         return call_perplexity(prompt)
+
+
+
+
