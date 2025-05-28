@@ -7,7 +7,9 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/Components/ui/dialog";
+import { Play, Pause, Download } from "lucide-react";
 import { fetchTrendingTopics } from "@/services/trendingService";
+import { publishToPodbeanMCP } from "@/services/podbeanService";
 
 const CritiqueIcon = () => (
   <img src="/public/edit.svg" alt="edit" className="w-5 h-5" />
@@ -119,26 +121,51 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     }));
   };
 
-  // helper to submit next prompt
-  const canSubmitNext = stage === 'audioReady';
-  const handleNextSubmit = () => {
-    if (!canSubmitNext || !nextPrompt.trim()) return;
-    // reset runner state
-    setStage('crawling');
-    setResponses({});
-    setScript('');
-    setAudioSrc('');
-    setCurrentStep(0);
-
-    // fire next job
-    fetch('http://localhost:5000/api/generate', {
+  async function publishToPodbeanMCP(audioUrl: string, notes: string) {
+    // this is your wrapper around Podbean’s SDK / HTTP API
+    const resp = await fetch('/api/podbean/publish', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ audioUrl, notes })
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    return resp.json();
+  }
+
+  // helper to submit next prompt
+  const canSubmitNext = stage === "audioReady";
+const handleNextSubmit = () => {
+  if (!canSubmitNext || !nextPrompt.trim()) return;
+
+  const lower = nextPrompt.toLowerCase();
+  const isPublishIntent =
+    /\b(post|upload)\b.*\bpodbean/i.test(nextPrompt);
+
+  if (isPublishIntent) {
+    // 📤 “Publish to Podbean” path
+    publishToPodbeanMCP(audioSrc, nextPrompt)
+      .then(() => {
+        setNextPrompt("");
+        alert("Podcast successfully queued for Podbean!");
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Failed to publish to Podbean.");
+      });
+  } else {
+    setStage("crawling");
+    setResponses({});
+    setScript("");
+    setAudioSrc("");
+    fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: nextPrompt }),
     }).catch(console.error);
-
-    setNextPrompt('');
-  };
+    setNextPrompt("");
+  }
+};
+  
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
@@ -245,14 +272,6 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     return () => window.removeEventListener('unload', onUnload)
   }, [stage, jobId])
   
-  // same for your custom “Back” button
-  const confirmAndGoBack = () => {
-    if (stage !== 'audioReady' && jobId) {
-      if (!window.confirm('Job still running — cancel and leave?')) return
-      navigator.sendBeacon('/api/cancel', JSON.stringify({ jobId }))
-    }
-    onBack?.()
-  }
 
   // Header text per stage
   const headerText = {
@@ -334,7 +353,7 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
 
       {/* Main Content */}
       <div className={`transition-margin duration-300 ease-in-out ${isSidebarOpen ? "ml-[153px]" : "ml-[60px]"}`}>
-        <div className="w-full max-w-[900px] mx-auto p-8">
+        <div className="w-full max-w-[1000px] mx-auto p-8">
           <div className="pb-[150px] md:pb-[180px]"> 
       {/* Title */}
           <h1 className="text-white text-2xl mb-6">{title}</h1>
@@ -392,12 +411,16 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
             <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
               <div className="flex items-center gap-4">
               <button
-                className={`p-1.5 border-2 border-[#9493E7] rounded-full transition-colors ${
-                  isPlaying ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
-                }`}
-                onClick={() => setIsPlaying((p) => !p)}
-              >
-                  <Play className="w-3.5 h-3.5 text-[#9493E7]" fill="currentColor" />
+                  className={`p-2 border-2 rounded-full transition-colors ${
+                    isPlaying
+                      ? "bg-[#9493E7]/20 border-[#9493E7] text-[#9493E7]"
+                      : "border-[#9493E7] hover:bg-[#9493E7]/10 text-[#9493E7]"
+                  }`}
+                  onClick={() => setIsPlaying(p => !p)}
+                >
+                  {isPlaying
+                    ? <Pause className="w-4 h-4" fill="currentColor" />
+                    : <Play  className="w-4 h-4" fill="currentColor" />}
                 </button>
 
                 <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
@@ -415,13 +438,15 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2">
-                <a
-               href={audioSrc}
-               download="podcast.wav"
-               className="p-2 rounded-full transition-all duration-200 border border-transparent bg-[#313131]/80 hover:bg-[#9388B3] group"
-             >
-               <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
-             </a>
+                 {/* Download */}
+                  <a
+                    href={audioSrc}
+                    download="podcast.wav"
+                    className="p-2 border-2 rounded-full transition-colors border-[#9392E7] hover:bg-[#9493E7]/10 text-[#9493E7]"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+
                   <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
                     <button 
                       onClick={() => setIsShareDialogOpen(true)}
