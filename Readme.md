@@ -13,6 +13,7 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 
 * [Introduction](#introduction)
 * [Feature Comparison](#feature-comparison)
+* [Example Usecases](#examples)
 * [Tech Stack](#tech-stack)
 * [Prerequisites](#prerequisites)
 * [Configuration](#configuration)
@@ -60,7 +61,7 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 | 🛠️ Custom Input formats         | ⚠️ Currently working on Documents                   | ✅ Supports Documents, Video URLs etc         | ⚠️ Supports Documents but not other sources        |
 
 
-## Example Usecases:
+## Example Usecases
 
 * **Movie Reviews**
 
