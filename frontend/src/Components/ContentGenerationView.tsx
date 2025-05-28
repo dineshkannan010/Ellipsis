@@ -197,28 +197,46 @@ const handleNextSubmit = () => {
 
   // when audioSrc arrives, update the <audio> tag
   useEffect(() => {
-    if (!audioRef.current || !audioSrc) return;
-    audioRef.current.load();
+    if (!audioSrc) return;
+    const url = audioSrc.startsWith('http')
+      ? audioSrc
+      : `${window.location.origin}${audioSrc}`;
+    if (audioRef.current) {
+      audioRef.current.src = url;
+      audioRef.current.load();
+    }
+    setIsLoading(true);
   }, [audioSrc]);
+  
+  // toggle play/pause
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(console.error);
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
 
   // wire up time updates
-  const onTimeUpdate = () => {
-    if (!audioRef.current) return;
-    setCurrentTime(audioRef.current.currentTime);
-  };
-
   const onLoadedMetadata = () => {
     if (!audioRef.current) return;
     setDuration(audioRef.current.duration);
     setIsLoading(false);
+    if (isPlaying) {
+      audioRef.current.play().catch(console.error);
+    }
   };
-
+  
+  const onTimeUpdate = () => {
+    if (!audioRef.current) return;
+    setCurrentTime(audioRef.current.currentTime);
+  };
+  
   const onEnded = () => {
     setIsPlaying(false);
     setCurrentTime(0);
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-    }
+    if (audioRef.current) audioRef.current.currentTime = 0;
   };
 
   async function onTrendingClick() {

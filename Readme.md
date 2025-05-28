@@ -161,6 +161,22 @@ https://github.com/user-attachments/assets/53e5b07c-d32d-4b95-a487-016980de7b33
   npm run dev                # or yarn dev
   ```
 
+  * Launch Podbean Server
+
+  ```bash
+  cd backend/integrations/podbean_mcp
+  pip install -e .
+  python server.py
+
+  ```
+  * Launch Podbean Client
+
+  ```bash
+  cd backend/integrations/podbean_mcp
+  python client.py server.py
+
+  ```
+
 * Enter a topic in the homepage textbox and hit **Enter**. Switch to the `ContentGenerationView` to see live script & audio progress.
 
 ### Streaming Updates (SSE)
