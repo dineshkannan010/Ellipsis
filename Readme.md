@@ -187,7 +187,9 @@ https://github.com/user-attachments/assets/c2880157-e577-4997-b108-3771b327e2be
 * After audio is ready, enter a prompt like `Post this podcast to Podbean`.
 * The client detects `podbean` intent and calls `/api/podbean/publish` via Beacon or `fetch`.
 
+## 🙏 Acknowledgments
 
+Huge thanks to [amurshak](mailto:amurshak@gmail.com) for creating and maintaining the Podbean MCP Server.
 
 ## License
 
