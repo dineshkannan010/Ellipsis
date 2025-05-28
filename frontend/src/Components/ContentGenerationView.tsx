@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Play, Download, Share2, ArrowRight, MicIcon, X } from 'lucide-react';
+import { Share2, ArrowRight, MicIcon, X } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { usePodcastSSE } from '../hooks/usePodcastSSE'
 import {
