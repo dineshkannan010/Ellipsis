@@ -19,7 +19,6 @@ _cancel_flags: dict[str, bool] = {}
 connected_socials = []
 
 
-
 @api_routes.route('/connect', methods=['POST'])
 def connect_platform():
     platform = request.json.get('platform')
