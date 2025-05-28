@@ -2,8 +2,10 @@
 
 <div align="center">
 <img width="513" alt="Screenshot 2025-05-28 at 1 47 50 PM" src="https://github.com/user-attachments/assets/4eae019c-0795-41e5-b693-3c7a91a86e6b" />
-
 </div>
+
+a next-gen podcast generation agent that brings human-like, high-quality audio content to life—on *any* topic, with just **one click**.
+Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews**, or **post-match sports breakdowns**, ellipsis crafts intelligent podcast episodes that sound like they were created by seasoned hosts in a professional studio.
 
 
 ## Table of Contents
@@ -28,11 +30,6 @@
 ---
 
 ## Introduction
-
-**Ellipsis** is a next-gen podcast generation agent that brings human-like, high-quality audio content to life—on *any* topic, with just **one click**.
-
-Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews**, or **post-match sports breakdowns**, ellipsis crafts intelligent podcast episodes that sound like they were created by seasoned hosts in a professional studio.
-
 
 ### 🚀 What Makes ellipsis Unique?
 
