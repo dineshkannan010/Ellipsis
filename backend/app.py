@@ -5,6 +5,7 @@ from flask_jwt_extended import JWTManager
 from routes.api import api_routes
 from flask_sse import sse
 from flask import send_from_directory
+from routes.podbean import podbean_bp
 
 app = Flask(__name__)
 # Set the secret key for session management. Used for securely signing the session cookie.
@@ -33,6 +34,8 @@ app.register_blueprint(sse, url_prefix='/stream')
 
 # Register API routes
 app.register_blueprint(api_routes, url_prefix='/api')
+
+app.register_blueprint(podbean_bp)
 
 @app.route('/audio/<path:filename>')
 def audio(filename):
