@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/Components/ui/dialog";
+import { fetchTrendingTopics } from "@/services/trendingService";
 
 const CritiqueIcon = () => (
   <img src="/public/edit.svg" alt="edit" className="w-5 h-5" />
@@ -80,9 +81,6 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
   onToggleSidebar,
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
-  const [isContentVisible, setIsContentVisible] = useState(true);
-  const [isLoading, setIsLoading] = useState(true);
-  const [responseGenerated, setResponseGenerated] = useState(false);
   const [activeDot, setActiveDot] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeButtons, setActiveButtons] = useState({
@@ -92,15 +90,17 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     mic: false,
     arrow: false,
     trending: false,
-    opinion: false,
-    takeAway: false,
-    growth: false,
   });
+
+  const [isTrendingOpen,    setTrendingOpen]    = useState(false)
+  const [trendingTopics,    setTrendingTopics]   = useState<TrendingTopic[]>([])
+  const [isLoadingTrending, setLoadingTrending] = useState(false)
   
   // bottom input for next round
   const [nextPrompt, setNextPrompt] = useState<string>('');
 
   // State for podcast generation
+  const [jobId, setJobId] = useState<string|undefined>()
   const [stage, setStage] = useState<Stage>('crawling');
   const [responses, setResponses] = useState<{ general_public?: string; critic?: string }>({});
   const [script, setScript] = useState<string>('');
@@ -164,14 +164,42 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     setDuration(audioRef.current.duration);
   };
 
+  async function onTrendingClick() {
+    // If already open, just close
+    if (isTrendingOpen) {
+      return setTrendingOpen(false)
+    }
+  
+    // otherwise open + fetch
+    setTrendingOpen(true)
+    setLoadingTrending(true)
+    try {
+      const topics = await fetchTrendingTopics()   // hits your new /api/trending
+      setTrendingTopics(topics)
+    } catch (err) {
+      console.error("Failed to load trending:", err)
+    } finally {
+      setLoadingTrending(false)
+    }
+  }
+
   // Kick off the job
   useEffect(() => {
-    fetch('http://localhost:5000/api/generate', {
+    fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: title })
-    }).catch(console.error);
-  }, [title]);
+      body: JSON.stringify({ query: title }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.jobId) {
+          setJobId(data.jobId)
+        } else {
+          console.warn('No jobId returned from /api/generate', data)
+        }
+      })
+      .catch(console.error)
+  }, [title])
 
   // Animate the loading dots
   useEffect(() => {
@@ -180,6 +208,18 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     }, 400);
     return () => clearInterval(interval);
   }, []);
+
+  //beforeunload → ask confirmation on any unload (incl. refresh)
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (stage !== 'audioReady' && jobId) {
+        e.preventDefault()
+        e.returnValue = 'Generation is in progress — leave anyway?'
+      }
+    }
+    window.addEventListener('beforeunload', beforeUnload)
+    return () => window.removeEventListener('beforeunload', beforeUnload)
+  }, [stage, jobId])
 
   const LoadingDots = () => (
     <div className="flex items-center gap-1 ml-3">
@@ -193,7 +233,27 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
       ))}
     </div>
   );
+
+  // unload → fire-and-forget cancel via Beacon API
+  useEffect(() => {
+    const onUnload = () => {
+      if (stage !== 'audioReady' && jobId) {
+        navigator.sendBeacon('/api/cancel', JSON.stringify({ jobId }))
+      }
+    }
+    window.addEventListener('unload', onUnload)
+    return () => window.removeEventListener('unload', onUnload)
+  }, [stage, jobId])
   
+  // same for your custom “Back” button
+  const confirmAndGoBack = () => {
+    if (stage !== 'audioReady' && jobId) {
+      if (!window.confirm('Job still running — cancel and leave?')) return
+      navigator.sendBeacon('/api/cancel', JSON.stringify({ jobId }))
+    }
+    onBack?.()
+  }
+
   // Header text per stage
   const headerText = {
     crawling: 'Agent generating content',
@@ -438,66 +498,6 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
                     alt="Trending up" 
                   />
                   <span className="ml-1.5 text-xs whitespace-nowrap">Trending</span>
-                </button>
-
-                <button 
-                  onClick={() => handleButtonClick('opinion')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.opinion 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.opinion 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/lightbulb-2.svg" 
-                    alt="Lightbulb" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Opinion</span>
-                </button>
-
-                <button 
-                  onClick={() => handleButtonClick('takeAway')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.takeAway 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.takeAway 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/takeout-dining.png" 
-                    alt="Takeout dining" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Take Away</span>
-                </button>
-
-                <button 
-                  onClick={() => handleButtonClick('growth')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.growth 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.growth 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/potted-plant.png" 
-                    alt="Potted plant" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Growth</span>
                 </button>
 
                 <div className="flex items-center gap-2 ml-auto">
