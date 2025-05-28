@@ -1,5 +1,5 @@
 import { ArrowRight, X, Plus, Loader2, MicIcon, Menu } from "lucide-react";
-import React, { useState, KeyboardEvent, useEffect } from "react";
+import React, { useState, KeyboardEvent, useEffect, useRef } from "react";
 import { Button } from "@/Components/ui/button";
 import { Card } from "@/Components/ui/card";
 import {
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/Components/ui/dialog";
 import { fetchTrendingTopics } from "@/services/trendingService";
+import { ContentGenerationView } from "../../Components/ContentGenerationView";
 
 import { connectPlatform, disconnectPlatform, getConnectedPlatforms, fetchOAuthUrl } from "@/services/socialService";
 
@@ -37,31 +38,6 @@ interface LoginStatus {
   }
 }
 
-interface Platform {
-  name: string;
-  icon: string;
-  className: string;
-}
-
-// Social media platforms
-const socialPlatforms: Platform[] = [
-  {
-      name: "LinkedIn",
-      icon: "/linkedin.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Reddit",
-      icon: "/reddit.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-    {
-      name: "Twitter",
-      icon: "/twitter.svg",
-      className: "bg-[#313131] hover:bg-[#313131]/80",
-    },
-  ];
-
 export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   const [postContent, setPostContent] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -74,26 +50,19 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
       return [];
     }
   });
-  const [isTrendingModalOpen, setIsTrendingModalOpen] = useState(false);
-  const [trendingTopics, setTrendingTopics] = useState<TrendingTopic[]>([]);
-  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
+  const [isTrendingOpen,    setTrendingOpen]    = useState(false)
+  const [trendingTopics,    setTrendingTopics]   = useState<TrendingTopic[]>([])
+  const [isLoadingTrending, setLoadingTrending] = useState(false)
   const [expandedTopicIndex, setExpandedTopicIndex] = useState<number | null>(null);
-  const [showTrendingTopics, setShowTrendingTopics] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [showContentGeneration, setShowContentGeneration] = useState(false);
   const [contentGenerationTitle, setContentGenerationTitle] = useState("");
   const [activeButtons, setActiveButtons] = useState<{
     trending: boolean;
-    opinion: boolean;
-    takeAway: boolean;
-    growth: boolean;
     mic: boolean;
     arrow: boolean;
   }>({
     trending: false,
-    opinion: false,
-    takeAway: false,
-    growth: false,
     mic: false,
     arrow: false,
   });
@@ -109,7 +78,6 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
       return {};
     }
   });
-
   // Fix interval type and add abort controller
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -188,18 +156,24 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
     }
   };
 
-  // Function to fetch trending topics
-  const fetchTopics = async () => {
-    setIsLoadingTopics(true);
-    try {
-      const topics = await fetchTrendingTopics();
-      setTrendingTopics(topics);
-    } catch (error) {
-      console.error("Failed to fetch trending topics:", error);
-    } finally {
-      setIsLoadingTopics(false);
+  async function onTrendingClick() {
+    // If already open, just close
+    if (isTrendingOpen) {
+      return setTrendingOpen(false)
     }
-  };
+  
+    // otherwise open + fetch
+    setTrendingOpen(true)
+    setLoadingTrending(true)
+    try {
+      const topics = await fetchTrendingTopics()   // hits your new /api/trending
+      setTrendingTopics(topics)
+    } catch (err) {
+      console.error("Failed to load trending:", err)
+    } finally {
+      setLoadingTrending(false)
+    }
+  }
 
   const handleConnect = (platformName: string) => {
     const platform = socialPlatforms.find(p => p.name === platformName);
@@ -349,33 +323,6 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
     setIsShareDialogOpen(false);
   };
 
-  // Data for category badges
-  const categories: Category[] = [
-    {
-      icon: "/trending-up.svg",
-      label: "Trending",
-      alt: "Trending up",
-      onClick: () => {
-        setShowTrendingTopics(!showTrendingTopics);
-      },
-    },
-    {
-      icon: "/lightbulb-2.svg",
-      label: "Opinion",
-      alt: "Lightbulb",
-    },
-    {
-      icon: "/takeout-dining.png",
-      label: "Take Away",
-      alt: "Takeout dining",
-    },
-    {
-      icon: "/potted-plant.png",
-      label: "Growth",
-      alt: "Potted plant",
-    },
-  ];
-
   // Save connected platforms to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('connectedPlatforms', JSON.stringify(connectedPlatforms));
@@ -523,96 +470,78 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
             className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none"
           />
 
-            <div className="flex flex-wrap gap-2 md:gap-4 items-center">
-              {categories.map((category, idx) => (
-                <button 
-                  key={idx} 
-                  onClick={() => {
-                    category.onClick?.();
-                    handleButtonClick(category.label.toLowerCase());
-                    if (category.label === "Trending") {
-                      setShowTrendingTopics(!showTrendingTopics);
-                    }
-                  }}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons[category.label.toLowerCase() as keyof typeof activeButtons]
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons[category.label.toLowerCase() as keyof typeof activeButtons] 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src={category.icon} 
-                    alt={category.alt} 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">{category.label}</span>
-                </button>
-              ))}
+<div className="flex items-center gap-2">
+    <button
+      onClick={onTrendingClick}
+      className={`px-3 py-1.5 rounded-lg ${
+        isTrendingOpen
+          ? 'bg-[#9388B3] text-[#313131]'
+          : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
+      }`}
+    >
+      Trending
+    </button>
+    
+    <button
+      onClick={() => handleButtonClick('mic')}
+      className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
+        activeButtons.mic ? 'bg-[#9388B3]' : 'bg-[#313131]/80 hover:bg-[#9388B3]'
+      }`}
+    >
+      <MicIcon
+        className={`w-4 h-4 transition-colors duration-200 ${
+          activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
+        }`}
+      />
+    </button>
 
-              <div className="flex items-center gap-2 ml-auto">
-                <button 
-                  onClick={() => handleButtonClick('mic')}
-                  className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
-                    activeButtons.mic 
-                      ? 'bg-[#9388B3]' 
-                      : 'bg-[#313131]/80 hover:bg-[#9388B3]'
-                  }`}
-                >
-                  <MicIcon className={`w-4 h-4 transition-colors duration-200 ${
-                    activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
-                  }`} />
-                </button>
-
-              <button 
-                onClick={() => {
-                  handleButtonClick('arrow');
-                  if (postContent.trim()) {
-                    onNavigate(postContent);
-                  }
-                }}
-                className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
-                  activeButtons.arrow 
-                    ? 'bg-[#9388B3] text-[#313131]' 
-                    : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
-                }`}
-              >
-                <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
-                  activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
-                }`} />
-              </button>
-            </div>
-          </div>
+    <button
+      onClick={() => {
+        handleButtonClick('arrow')
+        if (postContent.trim()) onNavigate(postContent)
+      }}
+      className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
+        activeButtons.arrow
+          ? 'bg-[#9388B3] text-[#313131]'
+          : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
+      }`}
+    >
+      <ArrowRight
+        className={`w-4 h-4 transition-colors duration-200 ${
+          activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
+        }`}
+      />
+    </button>
+  </div>
 
             {/* Trending Topics Display */}
-            {showTrendingTopics && (
-              <div className="mt-4 bg-[#1F1F1F] rounded-lg">
-                {isLoadingTopics ? (
-                  <div className="flex justify-center p-4">
-                    <Loader2 className="w-6 h-6 text-[#9392E6] animate-spin" />
-                  </div>
-                ) : (
-                  <div className="flex flex-col">
-                    {trendingTopics.map((topic, index) => (
-                      <div
-                        key={index}
-                        onClick={() => {
-                          handleTrendingTopicClick(topic);
-                          handleButtonClick('trending');
-                        }}
-                        className="flex items-center px-4 py-3 hover:bg-[#9388B3] transition-all duration-200 group cursor-pointer"
-                      >
-                        <Plus className="w-5 h-5 text-[#a1a1a1] group-hover:text-[#313131] mr-3" />
-                        <span className="text-[#a1a1a1] text-sm group-hover:text-[#313131]">{topic.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {isTrendingOpen && (
+  <div className="mt-4 bg-[#1F1F1F] rounded-lg border border-[#313131] max-h-60 overflow-y-auto">
+    {isLoadingTrending ? (
+      <div className="flex justify-center p-4">
+        <Loader2 className="animate-spin text-[#9392E6]" />
+      </div>
+    ) : (
+      trendingTopics.map((t, i) => (
+        <div
+          key={i}
+          onClick={() => { handleTrendingTopicClick(t); handleButtonClick('trending'); }}
+          className="flex items-start px-4 py-3 hover:bg-[#9388B3] cursor-pointer transition"
+        >
+          <Plus className="w-4 h-4 text-[#a1a1a1] flex-shrink-0 mt-1" />
+          <div className="ml-3">
+            <div className="text-[#f8f8f8] font-medium text-sm">
+              {t.title}
+            </div>
+            <div className="mt-1 text-[#a1a1a1] text-xs leading-snug">
+              {t.description}
+            </div>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
+)}
           </Card>
         </div>
       </div>

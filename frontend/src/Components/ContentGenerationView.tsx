@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Play, Download, Share2, ArrowRight, MicIcon, X } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { usePodcastSSE } from '../hooks/usePodcastSSE'
@@ -63,11 +63,18 @@ type Stage =
   | 'audioError'
   | 'audioReady';
 
+  function formatSeconds(sec: number): string {
+    if (!Number.isFinite(sec) || sec < 0) return "00:00";
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
 export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({ 
   title, 
   onBack,
   connectedPlatforms,
-  socialPlatforms,
+  socialPlatforms= [],
   onConnect,
   isSidebarOpen,
   onToggleSidebar,
@@ -133,7 +140,29 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     setNextPrompt('');
   };
 
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
+  // when audioSrc arrives, update the <audio> tag
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(console.error);
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  // wire up time updates
+  const onTimeUpdate = () => {
+    if (!audioRef.current) return;
+    setCurrentTime(audioRef.current.currentTime);
+  };
+  const onLoadedMeta = () => {
+    if (!audioRef.current) return;
+    setDuration(audioRef.current.duration);
+  };
 
   // Kick off the job
   useEffect(() => {
@@ -291,69 +320,86 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
       )}
 
           {/* Audio Player */}
-          <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
-            <div className="flex items-center gap-4">
-              <button 
-                className={`p-1.5 bg-transparent border-2 border-[#9493E7] rounded-full transition-colors ${
-                  activeButtons.play ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
+          {stage === 'audioReady' && audioSrc && (
+            <>
+            <audio
+              ref={audioRef}
+              src={audioSrc}
+              onTimeUpdate={onTimeUpdate}
+              onLoadedMetadata={onLoadedMeta}
+              style={{ display: 'none' }}             // hide the native player
+            />
+            <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
+              <div className="flex items-center gap-4">
+              <button
+                className={`p-1.5 border-2 border-[#9493E7] rounded-full transition-colors ${
+                  isPlaying ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
                 }`}
-                onClick={() => {
-                  setActiveButtons(prev => ({ ...prev, play: !prev.play }));
-                  setIsPlaying(!isPlaying);
-                }}
+                onClick={() => setIsPlaying((p) => !p)}
               >
-                <Play className="w-3.5 h-3.5 text-[#9493E7]" fill="currentColor" />
-              </button>
-              <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
-                <div 
-                  className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-200"
-                  style={{ width: '30%' }}
-                >
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#9493E7]"></div>
+                  <Play className="w-3.5 h-3.5 text-[#9493E7]" fill="currentColor" />
+                </button>
+
+                <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
+                  <div 
+                    className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-200"
+                    style={{  width: `${(currentTime / duration) * 100}%` }}
+                  >
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#9493E7]"></div>
+                  </div>
+                </div>
+
+                {/* time display */}
+                <span className="text-[#A1A1A1] text-xs">
+                  {formatSeconds(currentTime)} / {formatSeconds(duration)}
+                </span>
+
+                <div className="flex items-center gap-2">
+                <a
+               href={audioSrc}
+               download="podcast.wav"
+               className="p-2 rounded-full transition-all duration-200 border border-transparent bg-[#313131]/80 hover:bg-[#9388B3] group"
+             >
+               <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
+             </a>
+                  <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+                    <button 
+                      onClick={() => setIsShareDialogOpen(true)}
+                      className="px-4 py-1.5 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] transition-all duration-200 group"
+                    >
+                      <span className="text-[#A1A1A1] text-xs group-hover:text-[#313131]">Share</span>
+                    </button>
+                    <DialogContent className="bg-[#1F1F1F] border border-[#313131] rounded-[24px] max-w-[600px] p-8">
+                      <DialogTitle className="text-white text-2xl text-center mb-8">Share To</DialogTitle>
+                      <div className="flex flex-row gap-4 justify-center">
+                        {socialPlatforms.map(platform => (
+                          <button
+                            key={platform.name}
+                            onClick={() => handleShareClick(platform.name)}
+                            className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
+                          >
+                            <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
+                            <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">
+                              {platform.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <button 
+                        onClick={() => setIsShareDialogOpen(false)} 
+                        className="absolute right-5 top-5 text-white/40 hover:bg-[#9388B3] hover:text-[#313131] p-2 rounded-full transition-all duration-200"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
-              <span className="text-[#A1A1A1] text-xs">00:00/3:00</span>
-              <div className="flex items-center gap-2">
-                <button 
-                  className="p-2 rounded-full transition-all duration-200 border border-transparent bg-[#313131]/80 hover:bg-[#9388B3] group"
-                >
-                  <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
-                </button>
-                <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-                  <button 
-                    onClick={() => setIsShareDialogOpen(true)}
-                    className="px-4 py-1.5 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] transition-all duration-200 group"
-                  >
-                    <span className="text-[#A1A1A1] text-xs group-hover:text-[#313131]">Share</span>
-                  </button>
-                  <DialogContent className="bg-[#1F1F1F] border border-[#313131] rounded-[24px] max-w-[600px] p-8">
-                    <DialogTitle className="text-white text-2xl text-center mb-8">Share To</DialogTitle>
-                    <div className="flex flex-row gap-4 justify-center">
-                      {socialPlatforms.map(platform => (
-                        <button
-                          key={platform.name}
-                          onClick={() => handleShareClick(platform.name)}
-                          className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
-                        >
-                          <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
-                          <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">
-                            {platform.name}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <button 
-                      onClick={() => setIsShareDialogOpen(false)} 
-                      className="absolute right-5 top-5 text-white/40 hover:bg-[#9388B3] hover:text-[#313131] p-2 rounded-full transition-all duration-200"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </DialogContent>
-                </Dialog>
-              </div>
             </div>
-          </div>
-
+            </>
+          )}
+        </div>
+      </div>
       {/* Agent Steps */}
       
       {/* Post About Box - Sticky */}

@@ -40,7 +40,7 @@ export function usePodcastSSE({
 
     es.addEventListener('status', (e) => {
       console.log('[SSE status]', e.data)
-      const { status } = JSON.parse(e.data)
+      const { status, message } = JSON.parse(e.data)
       switch (status) {
         case 'initial_response_generation_started':
           setStage('initialResponses')
@@ -55,7 +55,8 @@ export function usePodcastSSE({
           setStage('audioGenerating')
           break
         case 'audio_error':
-          setStage('audioError')
+          console.error('TTS init error:', message)
+
           break
         case 'podcast_generated':
           setStage('audioReady')
@@ -74,15 +75,20 @@ export function usePodcastSSE({
     })
 
     es.addEventListener('script', (e) => {
-      console.log('[SSE script]', e.data)
-      const { script } = JSON.parse(e.data)
-      setScript(script)
+      const { script: incoming } = JSON.parse(e.data)
+      console.log('[SSE script]', incoming)
+      // only overwrite if non‐empty
+      if (incoming && incoming.trim()) {
+        setScript(incoming)
+      }
     })
 
     es.addEventListener('audio', (e) => {
       console.log('[SSE audio]', e.data)
       const { audio } = JSON.parse(e.data)
       setAudioSrc(`http://localhost:5000${audio}`)
+      // once we actually get the audio URL, go into the ready state
+     setStage('audioReady')
     })
 
     return () => {
