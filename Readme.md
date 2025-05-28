@@ -4,7 +4,8 @@
 <img width="513" alt="Screenshot 2025-05-28 at 1 47 50 PM" src="https://github.com/user-attachments/assets/4eae019c-0795-41e5-b693-3c7a91a86e6b" />
 </div>
 
-a next-gen podcast generation agent that brings human-like, high-quality audio content to life—on *any* topic, with just **one click**.
+<br></br>
+A next-gen podcast generation agent that brings human-like, high-quality audio content to life—on *any* topic, with just **one click**.
 Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews**, or **post-match sports breakdowns**, ellipsis crafts intelligent podcast episodes that sound like they were created by seasoned hosts in a professional studio.
 
 
@@ -12,6 +13,7 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 
 * [Introduction](#introduction)
 * [Feature Comparison](#feature-comparison)
+* [Example Usecases](#examples)
 * [Tech Stack](#tech-stack)
 * [Prerequisites](#prerequisites)
 * [Configuration](#configuration)
@@ -59,13 +61,20 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 | 🛠️ Custom Input formats         | ⚠️ Currently working on Documents                   | ✅ Supports Documents, Video URLs etc         | ⚠️ Supports Documents but not other sources        |
 
 
-## Example Usecases:
+## Example Usecases
 
 * **Movie Reviews**
 
+
+https://github.com/user-attachments/assets/824bab23-2aa9-4443-bc87-0ccb013f86fc
+
+
 * **Sports News**
 
-https://github.com/user-attachments/assets/53e5b07c-d32d-4b95-a487-016980de7b33
+
+https://github.com/user-attachments/assets/c2880157-e577-4997-b108-3771b327e2be
+
+
 
 ## Tech Stack
 
@@ -194,7 +203,9 @@ https://github.com/user-attachments/assets/53e5b07c-d32d-4b95-a487-016980de7b33
 * After audio is ready, enter a prompt like `Post this podcast to Podbean`.
 * The client detects `podbean` intent and calls `/api/podbean/publish` via Beacon or `fetch`.
 
+## 🙏 Acknowledgments
 
+Huge thanks to [amurshak](mailto:amurshak@gmail.com) for creating and maintaining the Podbean MCP Server.
 
 ## License
 
@@ -228,3 +239,4 @@ For questions or feedback, open an issue or reach out to
       </td>
     </tr>
   </table>
+
