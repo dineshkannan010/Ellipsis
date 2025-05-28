@@ -59,6 +59,13 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 | 🛠️ Custom Input formats         | ⚠️ Currently working on Documents                   | ✅ Supports Documents, Video URLs etc         | ⚠️ Supports Documents but not other sources        |
 
 
+## Example Usecases:
+
+* **Movie Reviews**
+
+* **Sports News**
+
+https://github.com/user-attachments/assets/53e5b07c-d32d-4b95-a487-016980de7b33
 
 ## Tech Stack
 
