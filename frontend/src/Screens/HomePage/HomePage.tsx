@@ -299,6 +299,7 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   const handleTrendingTopicClick = (topic: TrendingTopic) => {
     setContentGenerationTitle(topic.title);
     setShowContentGeneration(true);
+    setTrendingOpen(false);
   };
 
 
@@ -449,37 +450,33 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
             className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none"
           />
 
-          <div className="flex items-center gap-2">
-              <button
-                onClick={onTrendingClick}
-                className={`px-3 py-1.5 rounded-lg ${
-                  isTrendingOpen
-                    ? 'bg-[#9388B3] text-[#313131]'
-                    : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                }`}
-              >
-                Trending
-              </button>
-              
-              <button
-                onClick={() => handleButtonClick('mic')}
-                className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
-                  activeButtons.mic ? 'bg-[#9388B3]' : 'bg-[#313131]/80 hover:bg-[#9388B3]'
-                }`}
-              >
-                <MicIcon
-                  className={`w-4 h-4 transition-colors duration-200 ${
-                    activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
-                  }`}
-                />
-              </button>
+<div className="flex items-center gap-2">
+    <button
+      onClick={onTrendingClick}
+      className={`px-3 py-1.5 rounded-lg flex items-center gap-2 group ${
+        isTrendingOpen
+          ? 'bg-[#9388B3] text-[#313131]'
+          : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
+      }`}
+    >
+      <img 
+        src="/trending-up.svg" 
+        alt="Trending" 
+        className={`w-4 h-4 transition-all duration-200 ${
+          isTrendingOpen 
+            ? 'brightness-0' 
+            : 'opacity-80 group-hover:brightness-0'
+        }`}
+      />
+      <span className="transition-colors duration-200">Trending</span>
+    </button>
 
               <button
                 onClick={() => {
                   handleButtonClick('arrow')
                   if (postContent.trim()) onNavigate(postContent)
                 }}
-                className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
+                className={`ml-auto p-2 rounded-full transition-all duration-200 border border-transparent ${
                   activeButtons.arrow
                     ? 'bg-[#9388B3] text-[#313131]'
                     : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'

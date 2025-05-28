@@ -89,9 +89,8 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     play: false,
     download: false,
     share: false,
-    mic: false,
     arrow: false,
-    trending: false,
+    trending: false
   });
 
   const [isTrendingOpen,    setTrendingOpen]    = useState(false)
@@ -170,25 +169,85 @@ const handleNextSubmit = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  // Handle audio loading
+  const handleLoadStart = () => {
+    setIsLoading(true);
+    setError(null);
+  };
+
+  const handleCanPlay = () => {
+    setIsLoading(false);
+  };
+
+  const handleError = () => {
+    setIsLoading(false);
+    setError('Error loading audio');
+    setIsPlaying(false);
+  };
+
+  // Handle play/pause
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(err => {
+        console.error('Playback failed:', err);
+        setError('Playback failed');
+      });
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // Handle progress bar click
+  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || isLoading) return;
+    
+    const progressBar = e.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    const newTime = percentage * duration;
+    
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  // Format time helper function
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   // when audioSrc arrives, update the <audio> tag
   useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch(console.error);
-    } else {
-      audioRef.current.pause();
-    }
-  }, [isPlaying]);
+    if (!audioRef.current || !audioSrc) return;
+    
+    audioRef.current.load(); // Reload the audio when source changes
+  }, [audioSrc]);
 
   // wire up time updates
   const onTimeUpdate = () => {
     if (!audioRef.current) return;
     setCurrentTime(audioRef.current.currentTime);
   };
-  const onLoadedMeta = () => {
+
+  const onLoadedMetadata = () => {
     if (!audioRef.current) return;
     setDuration(audioRef.current.duration);
+    setIsLoading(false);
+  };
+
+  const onEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
   };
 
   async function onTrendingClick() {
@@ -358,45 +417,45 @@ const handleNextSubmit = () => {
       {/* Title */}
           <h1 className="text-white text-2xl mb-6">{title}</h1>
 
-      {/* Stage Header */}
-      <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
-        <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
-          <div className="flex items-center">
-            {headerText}
-            {stage !== 'audioReady' && <LoadingDots />}
-          </div>
-        </div>
-      </div>
-
-      {/* 2 Initial Responses */}
-      {['initialResponses', 'debate', 'scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) &&
-        responses.general_public &&
-        responses.critic && (
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-              <span className="text-[#A1A1A1] text-sm">Response 1</span>
-              <div className="text-gray-300 mt-2">
-                <Markdown>{responses.general_public}</Markdown>
+            {/* Stage Header */}
+            <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
+              <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
+                <div className="flex items-center">
+                  {headerText}
+                  {stage !== 'audioReady' && <LoadingDots />}
+                </div>
               </div>
             </div>
-            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-              <span className="text-[#A1A1A1] text-sm">Response 2</span>
-              <div className="text-gray-300 mt-2">
-                <Markdown>{responses.critic}</Markdown>
-              </div>
-            </div>
-          </div>
-      )}
 
-      {/* Final Script */}
-      {['scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) && script && (
-        <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
-          <span className="text-[#A1A1A1] text-sm">Generated Script</span>
-          <div className="text-gray-300 mt-2">
-            <Markdown>{script}</Markdown>
-          </div>
-        </div>
-      )}
+            {/* 2 Initial Responses */}
+            {['initialResponses', 'debate', 'scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) &&
+              responses.general_public &&
+              responses.critic && (
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+                    <span className="text-[#A1A1A1] text-sm">Response 1</span>
+                    <div className="text-gray-300 mt-2">
+                      <Markdown>{responses.general_public}</Markdown>
+                    </div>
+                  </div>
+                  <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+                    <span className="text-[#A1A1A1] text-sm">Response 2</span>
+                    <div className="text-gray-300 mt-2">
+                      <Markdown>{responses.critic}</Markdown>
+                    </div>
+                  </div>
+                </div>
+            )}
+
+            {/* Final Script */}
+            {['scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) && script && (
+              <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
+                <span className="text-[#A1A1A1] text-sm">Generated Script</span>
+                <div className="text-gray-300 mt-2">
+                  <Markdown>{script}</Markdown>
+                </div>
+              </div>
+            )}
 
           {/* Audio Player */}
           {stage === 'audioReady' && audioSrc && (
@@ -423,19 +482,22 @@ const handleNextSubmit = () => {
                     : <Play  className="w-4 h-4" fill="currentColor" />}
                 </button>
 
-                <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-200"
-                    style={{  width: `${(currentTime / duration) * 100}%` }}
-                  >
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#9493E7]"></div>
-                  </div>
-                </div>
+                    <div 
+                      className={`flex-1 h-2 bg-[#313131] rounded-full relative cursor-pointer ${isLoading ? 'opacity-50' : ''}`}
+                      onClick={handleProgressBarClick}
+                    >
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-100"
+                        style={{ width: `${(currentTime / duration) * 100}%` }}
+                      >
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#9493E7] shadow-lg transform scale-100 hover:scale-110 transition-transform"></div>
+                      </div>
+                    </div>
 
-                {/* time display */}
-                <span className="text-[#A1A1A1] text-xs">
-                  {formatSeconds(currentTime)} / {formatSeconds(duration)}
-                </span>
+                    {/* time display */}
+                    <span className="text-[#A1A1A1] text-sm min-w-[80px]">
+                      {isLoading ? '--:--' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+                    </span>
 
                 <div className="flex items-center gap-2">
                  {/* Download */}
@@ -525,34 +587,19 @@ const handleNextSubmit = () => {
                   <span className="ml-1.5 text-xs whitespace-nowrap">Trending</span>
                 </button>
 
-                <div className="flex items-center gap-2 ml-auto">
-                  <button 
-                    onClick={() => handleButtonClick('mic')}
-                    className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
-                      activeButtons.mic 
-                        ? 'bg-[#9388B3]' 
-                        : 'bg-[#313131]/80 hover:bg-[#9388B3]'
-                    }`}
-                  >
-                    <MicIcon className={`w-4 h-4 transition-colors duration-200 ${
-                      activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
-                    }`} />
-                  </button>
-
-                  <button 
-                    onClick={handleNextSubmit}
+                <button 
+                  onClick={handleNextSubmit}
                   disabled={!canSubmitNext}
-                    className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
-                      activeButtons.arrow 
-                        ? 'bg-[#9388B3] text-[#313131]' 
-                        : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
-                    }`}
-                  >
-                    <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
-                      activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
-                    }`} />
-                  </button>
-                </div>
+                  className={`ml-auto p-2 rounded-full transition-all duration-200 border border-transparent group ${
+                    activeButtons.arrow 
+                      ? 'bg-[#9388B3] text-[#313131]' 
+                      : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
+                  }`}
+                >
+                  <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
+                    activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
+                  }`} />
+                </button>
               </div>
             </div>
           </div>
