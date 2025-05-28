@@ -89,12 +89,8 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
     play: false,
     download: false,
     share: false,
-    mic: false,
     arrow: false,
-    trending: false,
-    opinion: false,
-    takeAway: false,
-    growth: false,
+    trending: false
   });
   
   // bottom input for next round
@@ -143,25 +139,85 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  // Handle audio loading
+  const handleLoadStart = () => {
+    setIsLoading(true);
+    setError(null);
+  };
+
+  const handleCanPlay = () => {
+    setIsLoading(false);
+  };
+
+  const handleError = () => {
+    setIsLoading(false);
+    setError('Error loading audio');
+    setIsPlaying(false);
+  };
+
+  // Handle play/pause
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(err => {
+        console.error('Playback failed:', err);
+        setError('Playback failed');
+      });
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  // Handle progress bar click
+  const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || isLoading) return;
+    
+    const progressBar = e.currentTarget;
+    const rect = progressBar.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    const newTime = percentage * duration;
+    
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  // Format time helper function
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   // when audioSrc arrives, update the <audio> tag
   useEffect(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.play().catch(console.error);
-    } else {
-      audioRef.current.pause();
-    }
-  }, [isPlaying]);
+    if (!audioRef.current || !audioSrc) return;
+    
+    audioRef.current.load(); // Reload the audio when source changes
+  }, [audioSrc]);
 
   // wire up time updates
   const onTimeUpdate = () => {
     if (!audioRef.current) return;
     setCurrentTime(audioRef.current.currentTime);
   };
-  const onLoadedMeta = () => {
+
+  const onLoadedMetadata = () => {
     if (!audioRef.current) return;
     setDuration(audioRef.current.duration);
+    setIsLoading(false);
+  };
+
+  const onEnded = () => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
   };
 
   // Kick off the job
@@ -274,150 +330,174 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
 
       {/* Main Content */}
       <div className={`transition-margin duration-300 ease-in-out ${isSidebarOpen ? "ml-[153px]" : "ml-[60px]"}`}>
-        <div className="w-full max-w-[900px] mx-auto p-8">
-          <div className="pb-[150px] md:pb-[180px]"> 
-      {/* Title */}
-          <h1 className="text-white text-2xl mb-6">{title}</h1>
+        <div className="w-full max-w-[900px] mx-auto px-8">
+          <div className="pb-[150px] md:pb-[180px]">
+            {/* Title */}
+            <h1 className="text-white text-2xl mb-6">{title}</h1>
 
-      {/* Stage Header */}
-      <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
-        <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
-          <div className="flex items-center">
-            {headerText}
-            {stage !== 'audioReady' && <LoadingDots />}
-          </div>
-        </div>
-      </div>
-
-      {/* 2 Initial Responses */}
-      {['initialResponses', 'debate', 'scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) &&
-        responses.general_public &&
-        responses.critic && (
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-              <span className="text-[#A1A1A1] text-sm">Response 1</span>
-              <div className="text-gray-300 mt-2">
-                <Markdown>{responses.general_public}</Markdown>
+            {/* Stage Header */}
+            <div className="bg-[#2E2D2D] rounded-xl py-4 mb-6">
+              <div className="flex justify-center items-center text-[#A1A1A1] text-sm">
+                <div className="flex items-center">
+                  {headerText}
+                  {stage !== 'audioReady' && <LoadingDots />}
+                </div>
               </div>
             </div>
-            <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
-              <span className="text-[#A1A1A1] text-sm">Response 2</span>
-              <div className="text-gray-300 mt-2">
-                <Markdown>{responses.critic}</Markdown>
-              </div>
-            </div>
-          </div>
-      )}
 
-      {/* Final Script */}
-      {['scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) && script && (
-        <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
-          <span className="text-[#A1A1A1] text-sm">Generated Script</span>
-          <div className="text-gray-300 mt-2">
-            <Markdown>{script}</Markdown>
-          </div>
-        </div>
-      )}
-
-          {/* Audio Player */}
-          {stage === 'audioReady' && audioSrc && (
-            <>
-            <audio
-              ref={audioRef}
-              src={audioSrc}
-              onTimeUpdate={onTimeUpdate}
-              onLoadedMetadata={onLoadedMeta}
-              style={{ display: 'none' }}             // hide the native player
-            />
-            <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
-              <div className="flex items-center gap-4">
-              <button
-                className={`p-1.5 border-2 border-[#9493E7] rounded-full transition-colors ${
-                  isPlaying ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
-                }`}
-                onClick={() => setIsPlaying((p) => !p)}
-              >
-                  <Play className="w-3.5 h-3.5 text-[#9493E7]" fill="currentColor" />
-                </button>
-
-                <div className="flex-1 h-1 bg-[#313131] rounded-full relative">
-                  <div 
-                    className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-200"
-                    style={{  width: `${(currentTime / duration) * 100}%` }}
-                  >
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-[#9493E7]"></div>
+            {/* 2 Initial Responses */}
+            {['initialResponses', 'debate', 'scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) &&
+              responses.general_public &&
+              responses.critic && (
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+                    <span className="text-[#A1A1A1] text-sm">Response 1</span>
+                    <div className="text-gray-300 mt-2">
+                      <Markdown>{responses.general_public}</Markdown>
+                    </div>
+                  </div>
+                  <div className="bg-[#1F1F1F] border border-[#313131] rounded-xl p-4">
+                    <span className="text-[#A1A1A1] text-sm">Response 2</span>
+                    <div className="text-gray-300 mt-2">
+                      <Markdown>{responses.critic}</Markdown>
+                    </div>
                   </div>
                 </div>
+            )}
 
-                {/* time display */}
-                <span className="text-[#A1A1A1] text-xs">
-                  {formatSeconds(currentTime)} / {formatSeconds(duration)}
-                </span>
-
-                <div className="flex items-center gap-2">
-                <a
-               href={audioSrc}
-               download="podcast.wav"
-               className="p-2 rounded-full transition-all duration-200 border border-transparent bg-[#313131]/80 hover:bg-[#9388B3] group"
-             >
-               <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
-             </a>
-                  <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-                    <button 
-                      onClick={() => setIsShareDialogOpen(true)}
-                      className="px-4 py-1.5 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] transition-all duration-200 group"
-                    >
-                      <span className="text-[#A1A1A1] text-xs group-hover:text-[#313131]">Share</span>
-                    </button>
-                    <DialogContent className="bg-[#1F1F1F] border border-[#313131] rounded-[24px] max-w-[600px] p-8">
-                      <DialogTitle className="text-white text-2xl text-center mb-8">Share To</DialogTitle>
-                      <div className="flex flex-row gap-4 justify-center">
-                        {socialPlatforms.map(platform => (
-                          <button
-                            key={platform.name}
-                            onClick={() => handleShareClick(platform.name)}
-                            className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
-                          >
-                            <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
-                            <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">
-                              {platform.name}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      <button 
-                        onClick={() => setIsShareDialogOpen(false)} 
-                        className="absolute right-5 top-5 text-white/40 hover:bg-[#9388B3] hover:text-[#313131] p-2 rounded-full transition-all duration-200"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </DialogContent>
-                  </Dialog>
+            {/* Final Script */}
+            {['scriptReady', 'audioGenerating','audioError', 'audioReady'].includes(stage) && script && (
+              <div className="bg-[#1F1F1F] rounded-xl p-4 mb-6">
+                <span className="text-[#A1A1A1] text-sm">Generated Script</span>
+                <div className="text-gray-300 mt-2">
+                  <Markdown>{script}</Markdown>
                 </div>
               </div>
-            </div>
-            </>
-          )}
+            )}
+
+            {/* Audio Player */}
+            {stage === 'audioReady' && audioSrc && (
+              <>
+                <audio
+                  ref={audioRef}
+                  src={audioSrc}
+                  onTimeUpdate={onTimeUpdate}
+                  onLoadedMetadata={onLoadedMetadata}
+                  onLoadStart={handleLoadStart}
+                  onCanPlay={handleCanPlay}
+                  onError={handleError}
+                  onEnded={onEnded}
+                  style={{ display: 'none' }}
+                />
+                <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
+                  <div className="flex items-center gap-4">
+                    <button
+                      className={`p-2.5 border-2 border-[#9493E7] rounded-full transition-colors ${
+                        isLoading ? 'opacity-50 cursor-not-allowed' :
+                        isPlaying ? 'bg-[#9493E7]/20' : 'hover:bg-[#9493E7]/10'
+                      }`}
+                      onClick={togglePlay}
+                      disabled={isLoading || !!error}
+                      title={isPlaying ? 'Pause' : 'Play'}
+                    >
+                      <Play className={`w-4 h-4 text-[#9493E7] ${isPlaying ? 'opacity-0' : 'opacity-100'}`} fill="currentColor" />
+                      {isPlaying && (
+                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                          <div className="w-2 h-5 bg-[#9493E7]"></div>
+                        </div>
+                      )}
+                    </button>
+
+                    <div 
+                      className={`flex-1 h-2 bg-[#313131] rounded-full relative cursor-pointer ${isLoading ? 'opacity-50' : ''}`}
+                      onClick={handleProgressBarClick}
+                    >
+                      <div 
+                        className="absolute left-0 top-0 h-full bg-[#9493E7] rounded-full transition-all duration-100"
+                        style={{ width: `${(currentTime / duration) * 100}%` }}
+                      >
+                        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#9493E7] shadow-lg transform scale-100 hover:scale-110 transition-transform"></div>
+                      </div>
+                    </div>
+
+                    {/* time display */}
+                    <span className="text-[#A1A1A1] text-sm min-w-[80px]">
+                      {isLoading ? '--:--' : `${formatTime(currentTime)} / ${formatTime(duration)}`}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={audioSrc}
+                        download="podcast.wav"
+                        className={`p-2.5 rounded-full transition-all duration-200 border border-transparent 
+                          ${isLoading ? 'opacity-50 cursor-not-allowed' : 'bg-[#313131]/80 hover:bg-[#9388B3] group'}`}
+                        onClick={(e) => {
+                          if (isLoading || error) {
+                            e.preventDefault();
+                          }
+                        }}
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4 text-[#9388B3] group-hover:text-[#313131] transition-colors duration-200" />
+                      </a>
+                      <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+                        <button 
+                          onClick={() => setIsShareDialogOpen(true)}
+                          className="px-4 py-1.5 bg-[#313131]/80 border border-transparent rounded-lg hover:bg-[#9388B3] transition-all duration-200 group"
+                        >
+                          <span className="text-[#A1A1A1] text-xs group-hover:text-[#313131]">Share</span>
+                        </button>
+                        <DialogContent className="bg-[#1F1F1F] border border-[#313131] rounded-[24px] max-w-[600px] p-8">
+                          <DialogTitle className="text-white text-2xl text-center mb-8">Share To</DialogTitle>
+                          <div className="flex flex-row gap-4 justify-center">
+                            {socialPlatforms.map(platform => (
+                              <button
+                                key={platform.name}
+                                onClick={() => handleShareClick(platform.name)}
+                                className="flex items-center justify-center gap-2 w-[160px] h-[38px] rounded-[12px] bg-[#313131]/80 hover:bg-[#9388B3] group transition-all duration-200"
+                              >
+                                <img src={platform.icon} alt={platform.name} className="w-5 h-5 opacity-80 group-hover:brightness-0" />
+                                <span className="text-[#a1a1a1] text-base group-hover:text-[#313131]">
+                                  {platform.name}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                          <button 
+                            onClick={() => setIsShareDialogOpen(false)} 
+                            className="absolute right-5 top-5 text-white/40 hover:bg-[#9388B3] hover:text-[#313131] p-2 rounded-full transition-all duration-200"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-2 text-red-500 text-sm">{error}</div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
-      {/* Agent Steps */}
-      
-      {/* Post About Box - Sticky */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[#121212] via-[#121212]/90 to-transparent pt-32">
-        <div className="w-full max-w-[900px] mx-auto px-8">
-          <div className="bg-[#1f1f1f]/90 backdrop-blur-lg border border-[#313131] rounded-lg p-4">
-            <textarea
-              value={nextPrompt}
-              onChange={e => setNextPrompt(e.target.value)}
-              placeholder="Post About..."
-              className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none focus:ring-1 focus:ring-[#9493E7] rounded"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleNextSubmit();
-                }
-              }}
-            />
+
+        {/* Post About Box - Sticky */}
+        <div className="fixed bottom-0 right-0 bg-gradient-to-t from-[#121212] via-[#121212]/90 to-transparent pt-32" style={{ width: `calc(100% - ${isSidebarOpen ? '153px' : '60px'})` }}>
+          <div className="w-full max-w-[900px] mx-auto px-8">
+            <div className="bg-[#1f1f1f] rounded-xl border border-[#313131] p-4">
+              <textarea
+                value={nextPrompt}
+                onChange={e => setNextPrompt(e.target.value)}
+                placeholder="Post About..."
+                className="w-full bg-transparent resize-none text-[#a1a1a1] placeholder-[#a1a1a1] mb-4 outline-none focus:ring-1 focus:ring-[#9493E7] rounded"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleNextSubmit();
+                  }
+                }}
+              />
 
               <div className="flex flex-wrap gap-2 md:gap-4 items-center">
                 <button 
@@ -441,93 +521,18 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
                 </button>
 
                 <button 
-                  onClick={() => handleButtonClick('opinion')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.opinion 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.opinion 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/lightbulb-2.svg" 
-                    alt="Lightbulb" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Opinion</span>
-                </button>
-
-                <button 
-                  onClick={() => handleButtonClick('takeAway')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.takeAway 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.takeAway 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/takeout-dining.png" 
-                    alt="Takeout dining" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Take Away</span>
-                </button>
-
-                <button 
-                  onClick={() => handleButtonClick('growth')}
-                  className={`flex items-center px-3 py-1.5 rounded-lg transition-all duration-200 border border-transparent group ${
-                    activeButtons.growth 
-                      ? 'bg-[#9388B3] text-[#313131]' 
-                      : 'bg-[#313131]/80 text-[#a1a1a1] hover:bg-[#9388B3] hover:text-[#313131]'
-                  }`}
-                >
-                  <img 
-                    className={`w-5 h-5 transition-opacity duration-200 ${
-                      activeButtons.growth 
-                        ? 'brightness-0' 
-                        : 'opacity-80 group-hover:brightness-0'
-                    }`} 
-                    src="/potted-plant.png" 
-                    alt="Potted plant" 
-                  />
-                  <span className="ml-1.5 text-xs whitespace-nowrap">Growth</span>
-                </button>
-
-                <div className="flex items-center gap-2 ml-auto">
-                  <button 
-                    onClick={() => handleButtonClick('mic')}
-                    className={`p-2 rounded-full transition-all duration-200 border border-transparent group ${
-                      activeButtons.mic 
-                        ? 'bg-[#9388B3]' 
-                        : 'bg-[#313131]/80 hover:bg-[#9388B3]'
-                    }`}
-                  >
-                    <MicIcon className={`w-4 h-4 transition-colors duration-200 ${
-                      activeButtons.mic ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
-                    }`} />
-                  </button>
-
-                  <button 
-                    onClick={handleNextSubmit}
+                  onClick={handleNextSubmit}
                   disabled={!canSubmitNext}
-                    className={`p-2 rounded-full transition-all duration-200 border border-transparent ${
-                      activeButtons.arrow 
-                        ? 'bg-[#9388B3] text-[#313131]' 
-                        : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
-                    }`}
-                  >
-                    <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
-                      activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
-                    }`} />
-                  </button>
-                </div>
+                  className={`ml-auto p-2 rounded-full transition-all duration-200 border border-transparent group ${
+                    activeButtons.arrow 
+                      ? 'bg-[#9388B3] text-[#313131]' 
+                      : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
+                  }`}
+                >
+                  <ArrowRight className={`w-4 h-4 transition-colors duration-200 ${
+                    activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] group-hover:text-[#313131]'
+                  }`} />
+                </button>
               </div>
             </div>
           </div>
