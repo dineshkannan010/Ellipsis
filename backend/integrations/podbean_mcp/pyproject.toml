@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "podbean_mcp"
+version = "0.1.0"
+description = "Podbean MCP integration for Ellipsis"
+readme = "README.md"
+authors = [
+  { name="Dinesh Kannan" }
+]
+dependencies = [
+  "requests",          # or whatever your client needs
+]
+[tool.setuptools]
+py-modules = ["client", "server"]
+
+[project.urls]
+"Homepage" = "https://github.com/dineshkannan010/Ellipsis.git"

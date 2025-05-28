@@ -82,7 +82,7 @@ export const ContentGenerationView: React.FC<ContentGenerationViewProps> = ({
   isSidebarOpen,
   onToggleSidebar,
 }) => {
-  const [currentStep, setCurrentStep] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeDot, setActiveDot] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeButtons, setActiveButtons] = useState({
@@ -142,7 +142,8 @@ const handleNextSubmit = () => {
 
   if (isPublishIntent) {
     // 📤 “Publish to Podbean” path
-    publishToPodbeanMCP(audioSrc, nextPrompt)
+    const notes = nextPrompt.replace(/\b(post|upload)\b.*\bpodbean\b/i, "").trim();
+    publishToPodbeanMCP(audioSrc, notes)
       .then(() => {
         setNextPrompt("");
         alert("Podcast successfully queued for Podbean!");
@@ -171,36 +172,7 @@ const handleNextSubmit = () => {
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Handle audio loading
-  const handleLoadStart = () => {
-    setIsLoading(true);
-    setError(null);
-  };
-
-  const handleCanPlay = () => {
-    setIsLoading(false);
-  };
-
-  const handleError = () => {
-    setIsLoading(false);
-    setError('Error loading audio');
-    setIsPlaying(false);
-  };
-
-  // Handle play/pause
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(err => {
-        console.error('Playback failed:', err);
-        setError('Playback failed');
-      });
-    }
-    setIsPlaying(!isPlaying);
-  };
+ 
 
   // Handle progress bar click
   const handleProgressBarClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -226,8 +198,7 @@ const handleNextSubmit = () => {
   // when audioSrc arrives, update the <audio> tag
   useEffect(() => {
     if (!audioRef.current || !audioSrc) return;
-    
-    audioRef.current.load(); // Reload the audio when source changes
+    audioRef.current.load();
   }, [audioSrc]);
 
   // wire up time updates
@@ -464,7 +435,7 @@ const handleNextSubmit = () => {
               ref={audioRef}
               src={audioSrc}
               onTimeUpdate={onTimeUpdate}
-              onLoadedMetadata={onLoadedMeta}
+              onLoadedMetadata={onLoadedMetadata}
               style={{ display: 'none' }}             // hide the native player
             />
             <div className="bg-[#2E2D2D] rounded-xl py-3 px-6 mb-6">
