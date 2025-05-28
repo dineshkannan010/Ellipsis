@@ -109,7 +109,7 @@ def summarize_contents(content: Dict[str, str], sse=None) -> Dict[str, str]:
 # Transcript parsing
 def parse_transcript(transcript: str):
     # Match speaker tags like [S1] or [S2]: followed by content
-    pattern = r'\[([S\d]+)\]:?\s*(.*?)((?=\[S\d+\])|$)'
+    pattern = r'\[(S\d+)\]:?\s*(.*?)((?=\[S\d+\])|$)'
     matches = re.findall(pattern, transcript, re.DOTALL)
     
     cleaned = []

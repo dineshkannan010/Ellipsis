@@ -12,8 +12,6 @@ flask-jwt-extended
 flask-sse
 redis
 python-dotenv
-langchain
-google-generativeai
 pydub
 numpy
 scipy
