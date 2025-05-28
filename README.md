@@ -27,7 +27,7 @@ Whether it’s **breaking news**, **deep-dive tech explainers**, **movie reviews
 
 ## 📊 Feature Comparison
 
-| Feature                         | Ellipses                                           | NotebookLM                                  | NeoGPT                                             |
+| Feature                         | Ellipses                                           | NotebookLM                                  | NoteGPT                                             |
 |---------------------------------|----------------------------------------------------|----------------------------------------------|----------------------------------------------------|
 | 🎙️ Podcast Generation           | ✅ fully automated                                  | ✅ fully automated                            | ✅ fully automated                              |
 | 🧠 Multi-Speaker Support        | ✅ Multiple distinct voices                         | ❌ Two-speaker conversations                  | ✅ Multiple distinct voices                     |
