@@ -3,19 +3,20 @@ from agent.generator import summarize_contents
 from agent.voice import text_2_audio
 from dotenv import load_dotenv
 from flask_sse import sse
-from types import SimpleNamespace as Namespace
 from threading import Thread
 import re
+from uuid import uuid4
+import json
 
 
 api_routes = Blueprint('api', __name__)
 
 load_dotenv()
 
-
+# a simple in‐memory flag store
+_cancel_flags: dict[str, bool] = {}
 # In-memory store (replace with DB in production)
 connected_socials = []
-
 
 
 @api_routes.route('/connect', methods=['POST'])
@@ -39,9 +40,12 @@ def get_connected_platforms():
     return jsonify({"connected_platforms": connected_socials}), 200
 
 
-def _run_pipeline(query: str, app):
+def _run_pipeline(query: str, app, job_id: str):
     # push the Flask app context so current_app works
     with app.app_context():
+
+        if _cancel_flags.get(job_id):
+            return
 
         # 1) Initial persona scripts
         sse.publish({"status": "initial_response_generation_started"}, type="status")
@@ -50,10 +54,19 @@ def _run_pipeline(query: str, app):
         # 2) Publish final script
         formatted = "\n\n".join(f"**{sp}:** {ln}" for sp, ln in final_script)
         sse.publish({"script": formatted}, type="script")
+        if _cancel_flags.get(job_id):
+            return
         sse.publish({"status": "script_ready"}, type="status")
-
+        
+        if _cancel_flags.get(job_id):
+            return
+        
         # 4) Generate audio
         sse.publish({"status": "audio_generation_started"}, type="status")
+
+        if _cancel_flags.get(job_id):
+            return
+        
         try:
             audio_file = text_2_audio(final_script)
             sse.publish({"audio": f"/audio/{audio_file}"}, type="audio")
@@ -75,12 +88,14 @@ def generate():
 
     # capture the true Flask app so the worker thread can push context
     app_obj = current_app._get_current_object()
+    
+     # 1) create a new job id + cancellation event
+    job_id = str(uuid4())
+    _cancel_flags[job_id] = False
 
-    # fire-and-forget
-    Thread(target=_run_pipeline, args=(query, app_obj), daemon=True).start()
+    Thread(target=_run_pipeline, args=(query, app_obj, job_id), daemon=True).start()
 
-    # immediately return so the frontend POST doesn't hang
-    return jsonify(success=True), 202
+    return jsonify(success=True, jobId=job_id), 202
 
 
 
@@ -126,7 +141,7 @@ def trending():
 
             clean_title = title.strip()
             clean_desc = re.sub(r'\s*\[\d+(?:,\s*\d+)*\]\s*', ' ', desc).strip()
-            
+
             topics.append({
                 "title": clean_title,
                 "description": clean_desc,
@@ -140,3 +155,23 @@ def trending():
         return jsonify(error=str(e)), 500
 
     return jsonify(topics=topics)
+
+@api_routes.route('/cancel', methods=['POST'])
+def cancel():
+    # read raw body, regardless of content-type
+    raw = request.get_data(as_text=True)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return jsonify(error="Invalid JSON"), 400
+
+    # accept either key name
+    job_id = payload.get("jobId") or payload.get("job_id")
+    if not job_id:
+        return jsonify(error="Missing jobId"), 400
+
+    if job_id in _cancel_flags:
+        _cancel_flags[job_id] = True
+        return "", 204
+
+    return jsonify(error="Unknown job"), 404

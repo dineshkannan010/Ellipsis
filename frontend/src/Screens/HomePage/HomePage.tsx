@@ -53,7 +53,6 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   const [isTrendingOpen,    setTrendingOpen]    = useState(false)
   const [trendingTopics,    setTrendingTopics]   = useState<TrendingTopic[]>([])
   const [isLoadingTrending, setLoadingTrending] = useState(false)
-  const [expandedTopicIndex, setExpandedTopicIndex] = useState<number | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [showContentGeneration, setShowContentGeneration] = useState(false);
   const [contentGenerationTitle, setContentGenerationTitle] = useState("");
@@ -68,7 +67,6 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
   });
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [platformDashboards, setPlatformDashboards] = useState<{[key: string]: string}>({});
-  const [refreshInterval, setRefreshInterval] = useState<ReturnType<typeof setInterval> | null>(null);
   const [loginStatus, setLoginStatus] = useState<LoginStatus>(() => {
     try {
       const stored = localStorage.getItem('platformLoginStatus');
@@ -304,24 +302,6 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
     setTrendingOpen(false);
   };
 
-  const handleShareClick = (platformName: string) => {
-    const platform = socialPlatforms.find(p => p.name === platformName);
-    if (!platform) return;
-
-    if (connectedPlatforms.includes(platformName)) {
-      // If connected, go to upload page
-      const uploadUrls: { [key: string]: string } = {
-        "Podbean": "https://www.podbean.com/studio/upload",
-        "Spotify": "https://podcasters.spotify.com/upload"
-      };
-      window.open(uploadUrls[platformName], "_blank");
-    } else {
-      // If not connected, go to login page
-      window.open(platform.url, "_blank");
-      setConnectedPlatforms((prev) => [...prev, platformName]);
-    }
-    setIsShareDialogOpen(false);
-  };
 
   // Save connected platforms to localStorage whenever it changes
   useEffect(() => {
@@ -491,53 +471,53 @@ export const HomePage = ({ onNavigate }: HomePageProps): JSX.Element => {
       <span className="transition-colors duration-200">Trending</span>
     </button>
 
-    <button
-      onClick={() => {
-        handleButtonClick('arrow')
-        if (postContent.trim()) onNavigate(postContent)
-      }}
-      className={`ml-auto p-2 rounded-full transition-all duration-200 border border-transparent ${
-        activeButtons.arrow
-          ? 'bg-[#9388B3] text-[#313131]'
-          : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
-      }`}
-    >
-      <ArrowRight
-        className={`w-4 h-4 transition-colors duration-200 ${
-          activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
-        }`}
-      />
-    </button>
-  </div>
+              <button
+                onClick={() => {
+                  handleButtonClick('arrow')
+                  if (postContent.trim()) onNavigate(postContent)
+                }}
+                className={`ml-auto p-2 rounded-full transition-all duration-200 border border-transparent ${
+                  activeButtons.arrow
+                    ? 'bg-[#9388B3] text-[#313131]'
+                    : 'bg-[#313131]/80 hover:bg-[#9388B3] hover:text-[#313131]'
+                }`}
+              >
+                <ArrowRight
+                  className={`w-4 h-4 transition-colors duration-200 ${
+                    activeButtons.arrow ? 'text-[#313131]' : 'text-[#9388B3] hover:text-[#313131]'
+                  }`}
+                />
+              </button>
+            </div>
 
             {/* Trending Topics Display */}
             {isTrendingOpen && (
-  <div className="mt-4 bg-[#1F1F1F] rounded-lg border border-[#313131] max-h-60 overflow-y-auto">
-    {isLoadingTrending ? (
-      <div className="flex justify-center p-4">
-        <Loader2 className="animate-spin text-[#9392E6]" />
-      </div>
-    ) : (
-      trendingTopics.map((t, i) => (
-        <div
-          key={i}
-          onClick={() => { handleTrendingTopicClick(t); handleButtonClick('trending'); }}
-          className="flex items-start px-4 py-3 hover:bg-[#9388B3] cursor-pointer transition"
-        >
-          <Plus className="w-4 h-4 text-[#a1a1a1] flex-shrink-0 mt-1" />
-          <div className="ml-3">
-            <div className="text-[#f8f8f8] font-medium text-sm">
-              {t.title}
-            </div>
-            <div className="mt-1 text-[#a1a1a1] text-xs leading-snug">
-              {t.description}
-            </div>
-          </div>
-        </div>
-      ))
-    )}
-  </div>
-)}
+              <div className="mt-4 bg-[#1F1F1F] rounded-lg border border-[#313131] max-h-60 overflow-y-auto">
+                {isLoadingTrending ? (
+                  <div className="flex justify-center p-4">
+                    <Loader2 className="animate-spin text-[#9392E6]" />
+                  </div>
+                ) : (
+                  trendingTopics.map((t, i) => (
+                    <div
+                      key={i}
+                      onClick={() => { handleTrendingTopicClick(t); handleButtonClick('trending'); }}
+                      className="flex items-start px-4 py-3 hover:bg-[#9388B3] cursor-pointer transition"
+                    >
+                      <Plus className="w-4 h-4 text-[#a1a1a1] flex-shrink-0 mt-1" />
+                      <div className="ml-3">
+                        <div className="text-[#f8f8f8] font-medium text-sm">
+                          {t.title}
+                        </div>
+                        <div className="mt-1 text-[#a1a1a1] text-xs leading-snug">
+                          {t.description}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </Card>
         </div>
       </div>
