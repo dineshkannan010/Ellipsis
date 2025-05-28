@@ -1,6 +1,9 @@
 # 🎙️ Ellipsis — One Click. Infinite Conversations.
 
+<div align="center">
+<img width="513" alt="Screenshot 2025-05-28 at 1 47 50 PM" src="https://github.com/user-attachments/assets/4eae019c-0795-41e5-b693-3c7a91a86e6b" />
 
+</div>
 
 
 ## Table of Contents
